@@ -1,0 +1,23 @@
+{
+  "name": "refresh-marketplace-cache",
+  "type": "task",
+  "display_name": "Refresh Marketplace Cache",
+  "collection": "agent-index-marketplace",
+  "collection_version": "2.0.0",
+  "version": "2.0.0",
+  "eol_date": null,
+  "eol_warning_days": 60,
+  "stateful": false,
+  "produces_artifacts": false,
+  "produces_shared_artifacts": false,
+  "setup_template": "refresh-marketplace-cache-setup.md",
+  "dependency_status": "complete",
+  "missing_dependencies": [],
+  "parameter_provenance": {
+    "marketplace_cache_ttl_hours": "org-mandated"
+  },
+  "dependencies": { "skills": [], "tasks": [] },
+  "external_dependencies": [],
+  "reads_from": null,
+  "writes_to": null
+}

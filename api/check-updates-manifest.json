@@ -1,0 +1,16 @@
+{
+  "name": "check-updates",
+  "type": "task",
+  "version": "2.0.0",
+  "collection": "agent-index-marketplace",
+  "parameters": {
+    "default_report_mode": {
+      "level": "member-overridable",
+      "default": "full"
+    },
+    "session_start_update_notices": {
+      "level": "member-overridable",
+      "default": true
+    }
+  }
+}
