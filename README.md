@@ -20,7 +20,7 @@ The marketplace collection for agent-index. Provides org admins with the tools t
 
 The marketplace directory is hosted in a dedicated GitHub repo at:
 ```
-https://raw.githubusercontent.com/agent-index/marketplace/refs/heads/main/marketplace-directory.json
+https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/marketplace-directory.json
 ```
 
 A local cache is kept at `/shared/marketplace-cache/` with a 24-hour TTL (configurable). Any task that reads the cache checks whether it's stale and refreshes automatically if needed. Network access to the marketplace directory URL is required for first-time setup — if the URL is blocked, Cowork's network settings must be updated to whitelist it before the marketplace can be used.

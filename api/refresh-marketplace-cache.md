@@ -80,7 +80,7 @@ Check whether a local cache already exists at `/shared/marketplace-cache/marketp
   - In both automatic and manual mode: surface the following and halt. Do not proceed. Wait for admin confirmation before retrying:
 
     > "The marketplace directory can't be reached and no local cache exists. Before continuing, please whitelist this URL in your Cowork network settings:
-    > `https://raw.githubusercontent.com/agent-index/marketplace/refs/heads/main/marketplace-directory.json`
+    > `https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/marketplace-directory.json`
     >
     > Once that's done, say '@ai:refresh-marketplace-cache' to retry."
 

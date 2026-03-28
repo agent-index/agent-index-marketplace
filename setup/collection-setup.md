@@ -43,7 +43,7 @@ This sets up the marketplace for your org. It initializes the local marketplace 
 4. Write `/shared/marketplace-cache/cache-metadata.json`:
 ```json
 {
-  "source_url": "https://raw.githubusercontent.com/agent-index/marketplace/refs/heads/main/marketplace-directory.json",
+  "source_url": "https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/marketplace-directory.json",
   "last_fetched": "{now ISO 8601}",
   "ttl_hours": {ttl_hours},
   "expires_at": "{now + ttl_hours ISO 8601}",
@@ -53,7 +53,7 @@ This sets up the marketplace for your org. It initializes the local marketplace 
 5. If initial cache fetch fails (network unreachable): halt and surface:
 
    > "The marketplace directory can't be reached. Before continuing, please whitelist this URL in your Cowork network settings:
-   > `https://raw.githubusercontent.com/agent-index/marketplace/refs/heads/main/marketplace-directory.json`
+   > `https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/marketplace-directory.json`
    >
    > Once that's done, say '@ai:refresh-marketplace-cache' to retry."
 

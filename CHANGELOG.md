@@ -14,7 +14,7 @@
 ## [1.0.1] — 2026-03-18
 
 ### Changed
-- Marketplace directory URL updated to dedicated repo: `agent-index/marketplace`
+- Marketplace directory URL updated to dedicated repo: `agent-index/agent-index-resource-listings`
 - Removed bundled `marketplace-directory.json` — network access required for first-time setup
 - `create-org` now bootstraps `agent-index-marketplace` before opening the marketplace
 - First-time setup and cache-miss now surface a whitelist instruction and hard-stop rather than falling back to a bundled file
