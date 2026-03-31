@@ -37,7 +37,7 @@ A formatted display of org collections. No files written.
 
 Read `org-config.json` from the remote filesystem via `aifs_read`. Extract `installed_collections`.
 
-If `org-config.json` cannot be read: surface "Org configuration isn't readable. Try '@ai:member-bootstrap' to check remote filesystem connectivity." Halt.
+If `org-config.json` cannot be read: check `aifs_auth_status()`. If `authenticated: false`, attempt automatic re-authentication via `aifs_authenticate`. If re-auth succeeds, retry the read. If re-auth fails or the read still fails: surface "Org configuration isn't readable. I tried to restore your remote connection but wasn't able to. Try '@ai:member-bootstrap' to troubleshoot, or contact your org admin." Halt.
 
 ---
 

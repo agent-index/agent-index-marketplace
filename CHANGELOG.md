@@ -1,5 +1,12 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.0.1] — 2026-03-31
+
+### Changed
+- `list-org-collections` and `download-collection` now attempt automatic re-authentication on auth failures instead of prompting users to say `@ai:member-bootstrap`
+
+---
+
 ## [2.0.0] — 2026-03-25
 
 ### Changed

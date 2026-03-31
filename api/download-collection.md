@@ -158,7 +158,7 @@ Never download `agent-index-core` or `agent-index-marketplace` through this task
 
 ### Edge Cases
 
-If the remote filesystem root is not writable: surface "The remote filesystem isn't writable. Try '@ai:member-bootstrap' to check your remote filesystem connectivity and authentication." Halt.
+If the remote filesystem root is not writable: check `aifs_auth_status()`. If `authenticated: false`, attempt automatic re-authentication via `aifs_authenticate` and retry the write. If re-auth fails or the write still fails: surface "The remote filesystem isn't writable. I tried to restore your connection but wasn't able to. Try '@ai:member-bootstrap' to troubleshoot." Halt.
 
 If the collection's `zip_url` or `repo_url` is missing from the marketplace directory entry: surface "The download URL for '{name}' is missing from the marketplace directory. Try refreshing the cache with '@ai:refresh-marketplace-cache' and trying again."
 
