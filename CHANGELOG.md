@@ -1,5 +1,12 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.0.2] — 2026-04-02
+
+### Changed
+- `check-updates` now checks for pending update instructions (`/shared/updates/latest.json`) and references `@ai:update` in its "What to do" recommendations. The diagnostic relationship between `check-updates` (marketplace) and `apply-updates` (agent-index-core) is documented in the task's About section.
+
+---
+
 ## [2.0.1] — 2026-03-31
 
 ### Changed

@@ -28,6 +28,8 @@ The result is a clear, prioritized report showing what's current, what has updat
 
 Any org member can run this task, not just admins. Everyone should be able to see their own update status. However, only admins can act on infrastructure and collection-level updates.
 
+**Relationship to the update instruction system:** This task and the `apply-updates` task serve different purposes. `check-updates` is a diagnostic — it scans live version data from GitHub, the marketplace, and the remote filesystem to show the full picture of what is out of date. `apply-updates` is an action — it reads admin-published update instructions and executes them. A member might run `check-updates` to understand their situation, and `@ai:update` to act on it. The two are complementary: `check-updates` can detect version drift that hasn't been published yet (e.g., a new marketplace version the admin hasn't installed), while `apply-updates` only acts on what the admin has explicitly published.
+
 ### Inputs
 
 None required. Optionally, the member can request:
@@ -131,6 +133,8 @@ Record the result for each:
 
 ### Step 5: Present Update Report
 
+**Check update instruction status:** Before compiling the report, read `/shared/updates/latest.json` from the remote filesystem via `aifs_read`. If it exists, compare `latest_id` against the member's `last_applied_update` from `member-index.json`. Record whether update instructions are pending — this influences the "What to do" section of the report.
+
 Compile all results into a prioritized report.
 
 **Full mode (default):**
@@ -162,9 +166,11 @@ Compile all results into a prioritized report.
 > **Summary:** {N} updates available, {M} items up to date, {P} unable to check.
 >
 > **What to do:**
-> {if infrastructure updates}: "Infrastructure updates require an org admin. {if member is admin: Say '@ai:marketplace' to upgrade agent-index-core. | if not admin: Contact your org admin to upgrade infrastructure.}"
-> {if collection updates}: "{if member is admin: Say '@ai:marketplace' to upgrade collections. | if not admin: Contact your org admin to upgrade the {collection} collection.}"
-> {if capability upgrades}: "Say '@ai:setup' to upgrade your installed capabilities to the latest versions."
+> {if update instructions are pending (last_applied_update behind latest.json)}: "Your admin has published update instructions. Say '@ai:update' to apply them — this will handle infrastructure, collection, and capability updates in one step."
+> {if no update instructions pending but updates detected}:
+> {if infrastructure updates}: "Infrastructure updates require an org admin. {if member is admin: Say '@ai:marketplace' to upgrade agent-index-core, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to upgrade infrastructure and publish update instructions.}"
+> {if collection updates}: "{if member is admin: Say '@ai:marketplace' to upgrade collections, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to upgrade the {collection} collection and publish update instructions.}"
+> {if capability upgrades}: "Say '@ai:update' if update instructions are available, or '@ai:setup' to upgrade your installed capabilities manually."
 
 **Quiet mode** (`--quiet`):
 

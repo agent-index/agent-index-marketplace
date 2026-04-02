@@ -14,6 +14,8 @@ The marketplace collection for agent-index. Provides org admins with the tools t
 - **refresh-marketplace-cache** — Fetch the latest marketplace directory from GitHub
 - **check-updates** — Comprehensive update check across infrastructure, installed collections, and member capabilities
 
+**Note:** The update *action* tasks (`publish-updates` and `apply-updates`) live in `agent-index-core`, not in this marketplace collection. The marketplace provides `check-updates` as a diagnostic — it shows what is out of date. To actually distribute and apply updates, admins use `@ai:publish-updates` and members use `@ai:update` (both from agent-index-core).
+
 ---
 
 ## How It Works
@@ -55,9 +57,14 @@ or
 @ai:refresh-marketplace-cache
 ```
 
-**Checking for updates across the system:**
+**Checking for updates across the system (diagnostic):**
 ```
 @ai:check-updates
+```
+
+**Applying published updates (from agent-index-core):**
+```
+@ai:update
 ```
 
 ---
