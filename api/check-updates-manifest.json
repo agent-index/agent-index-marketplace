@@ -1,16 +1,28 @@
 {
   "name": "check-updates",
   "type": "task",
-  "version": "2.0.0",
+  "display_name": "Check Updates",
   "collection": "agent-index-marketplace",
-  "parameters": {
-    "default_report_mode": {
-      "level": "member-overridable",
-      "default": "full"
-    },
-    "session_start_update_notices": {
-      "level": "member-overridable",
-      "default": true
-    }
-  }
+  "collection_version": "2.0.2",
+  "version": "2.0.0",
+  "eol_date": null,
+  "eol_warning_days": 60,
+  "stateful": false,
+  "produces_artifacts": false,
+  "produces_shared_artifacts": false,
+  "setup_template": "check-updates-setup.md",
+  "dependency_status": "complete",
+  "missing_dependencies": [],
+  "parameter_provenance": {
+    "default_report_mode": "member-overridable",
+    "session_start_update_notices": "member-overridable"
+  },
+  "dependencies": {
+    "skills": [],
+    "tasks": []
+  },
+  "external_dependencies": [],
+  "optional_external_dependencies": [],
+  "reads_from": null,
+  "writes_to": null
 }

@@ -1,7 +1,7 @@
 ---
 name: agent-index-marketplace-collection-setup
 type: collection-setup
-version: 2.0.0
+version: 2.0.2
 collection: agent-index-marketplace
 description: Org-admin setup for the agent-index-marketplace collection
 upgrade_compatible: true
@@ -74,6 +74,9 @@ None.
 
 ### Requires Admin Attention
 None unless the canonical marketplace URL changes — which would be noted here with the new URL.
+
+### Requires Member Attention
+None. Members use the marketplace list automatically; no individual action needed for upgrades.
 
 ### Migration Notes
 - v1.0 → future versions: migration notes will be added here as new versions are published.
