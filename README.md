@@ -8,7 +8,7 @@ The marketplace collection for agent-index. Provides org admins with the tools t
 
 - **list-marketplace-collections** — Browse all available marketplace collections with status indicators (available, downloaded, installed, update available)
 - **list-org-collections** — See what your org has downloaded and installed, including org-authored collections
-- **download-collection** — Download a marketplace collection to your org's remote filesystem (ZIP download, uploaded via MCP)
+- **download-collection** — Download a marketplace collection to your org's remote filesystem (ZIP download, uploaded via `aifs_*` tools)
 - **install-collection** — Run the org-admin setup interview for a downloaded collection
 - **download-and-install-collection** — Download and install in a single flow (recommended for most installs)
 - **refresh-marketplace-cache** — Fetch the latest marketplace directory from GitHub
@@ -27,7 +27,7 @@ https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs
 
 A local cache is kept at `/shared/marketplace-cache/` with a 24-hour TTL (configurable). Any task that reads the cache checks whether it's stale and refreshes automatically if needed. Network access to the marketplace directory URL is required for first-time setup — if the URL is blocked, Cowork's network settings must be updated to whitelist it before the marketplace can be used.
 
-Collections are downloaded as a ZIP and uploaded to the org's remote filesystem via `aifs_write`. The remote filesystem is accessed through the `agent-index-filesystem` MCP server — all org-level data (collection directories, org-config, marketplace cache) lives on the remote filesystem while member data stays local.
+Collections are downloaded as a ZIP and uploaded to the org's remote filesystem via `aifs_write`. The remote filesystem is accessed through `aifs_*` tools running in exec mode — all org-level data (collection directories, org-config, marketplace cache) lives on the remote filesystem while member data stays local.
 
 ---
 

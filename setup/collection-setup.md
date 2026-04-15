@@ -1,7 +1,7 @@
 ---
 name: agent-index-marketplace-collection-setup
 type: collection-setup
-version: 2.0.2
+version: 2.0.3
 collection: agent-index-marketplace
 description: Org-admin setup for the agent-index-marketplace collection
 upgrade_compatible: true

@@ -1,15 +1,15 @@
 # Agent-Index Marketplace — Roadmap
 
-Current version: 2.0.2
-Last updated: 2026-04-05
+Current version: 2.0.3
+Last updated: 2026-04-14
 
 ---
 
 ## Current State
 
-v2.0 is the marketplace discovery and collection management collection. Org admins use it to browse, download, and install marketplace collections. The collection operates on a hybrid model: the marketplace directory is fetched from a remote GitHub-hosted JSON file and cached locally with a 24-hour TTL. Collections are downloaded as ZIP files and uploaded to the org's remote filesystem via MCP.
+v2.0 is the marketplace discovery and collection management collection. Org admins use it to browse, download, and install marketplace collections. The collection operates on a hybrid model: the marketplace directory is fetched from a remote GitHub-hosted JSON file and cached locally with a 24-hour TTL. Collections are downloaded as ZIP files and uploaded to the org's remote filesystem via the on-demand executor.
 
-v2.0 runs on the remote filesystem model (MCP-based), consistent with agent-index-core v2.0+. The marketplace directory is authoritative and external; the local cache is a performance optimization only.
+v2.0 runs on the remote filesystem model (exec-based), consistent with agent-index-core v3.0.0. The marketplace directory is authoritative and external; the local cache is a performance optimization only.
 
 ### Known Limitations
 

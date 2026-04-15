@@ -1,12 +1,12 @@
 {
   "name": "agent-index-marketplace",
   "display_name": "Agent-Index Marketplace",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org's installed collections and keep them up to date.",
   "author": "agent-index",
   "license": "proprietary",
   "category": "infrastructure",
-  "agent_index_min_version": "2.0.0",
+  "agent_index_min_version": "3.0.0",
   "api": [
     "list-marketplace-collections",
     "list-org-collections",

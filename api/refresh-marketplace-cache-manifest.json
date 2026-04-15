@@ -3,7 +3,7 @@
   "type": "task",
   "display_name": "Refresh Marketplace Cache",
   "collection": "agent-index-marketplace",
-  "collection_version": "2.0.2",
+  "collection_version": "2.0.3",
   "version": "2.0.0",
   "eol_date": null,
   "eol_warning_days": 60,

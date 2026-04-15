@@ -1,5 +1,13 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.0.3] — 2026-04-14
+
+### Changed
+- `agent_index_min_version` bumped to `3.0.0` — requires agent-index-core v3.0.0 with on-demand executor
+- Documentation updated: "aifs_* MCP tools" references replaced with "aifs_* tools" throughout all API definitions and setup templates
+
+---
+
 ## [2.0.2] — 2026-04-02
 
 ### Changed
@@ -22,7 +30,7 @@
 - All tasks that read `org-config.json` or collection directories now use `aifs_read`/`aifs_list` for remote filesystem access
 - All "library root" references updated to "remote filesystem" across setup files and task definitions
 - `@ai:fs-setup` references updated to `@ai:member-bootstrap`
-- `agent_index_min_version` bumped to `2.0.0` — requires agent-index-core v2.0.0 with MCP server support
+- `agent_index_min_version` bumped to `2.0.0` — requires agent-index-core v2.0.0 with remote filesystem support
 - Version bumped to 2.0.0 across all task definitions, setup files, and manifests
 
 ## [1.0.1] — 2026-03-18

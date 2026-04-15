@@ -84,7 +84,7 @@ This is informational only at download time. Aliases are assigned during `instal
 
 ### Step 3: Download Method
 
-In the remote filesystem model, collections are always downloaded as ZIP and uploaded to the remote filesystem. Git clone is not supported because the remote filesystem is accessed via MCP tools, not as a local mount.
+In the remote filesystem model, collections are always downloaded as ZIP and uploaded to the remote filesystem. Git clone is not supported because the remote filesystem is accessed via `aifs_*` tools, not as a local mount.
 
 Record `install_method: zip`.
 
