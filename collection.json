@@ -1,20 +1,20 @@
 {
   "name": "agent-index-marketplace",
   "display_name": "Agent-Index Marketplace",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org's installed collections and keep them up to date.",
   "author": "agent-index",
   "license": "proprietary",
   "category": "infrastructure",
   "agent_index_min_version": "3.0.0",
   "api": [
-    "list-marketplace-collections",
-    "list-org-collections",
-    "download-collection",
-    "install-collection",
-    "download-and-install-collection",
+    {"name":"list-marketplace-collections","triggers":[{"phrase":"open marketplace","capability":"list-marketplace-collections","description":"Browse available collections in the marketplace"},{"phrase":"what collections are available","capability":"list-marketplace-collections","description":"Show marketplace collection catalog"},{"phrase":"show me the marketplace","capability":"list-marketplace-collections","description":"List collections available for installation"}]},
+    {"name":"list-org-collections","triggers":[{"phrase":"what's installed","capability":"list-org-collections","description":"Show collections installed in this org"},{"phrase":"list our collections","capability":"list-org-collections","description":"Display the org's installed collection inventory"}]},
+    {"name":"download-collection","triggers":[{"phrase":"download a collection","capability":"download-collection","description":"Download a collection from the marketplace to the org"}]},
+    {"name":"install-collection","triggers":[{"phrase":"install a collection","capability":"install-collection","description":"Install a downloaded collection for org members"}]},
+    {"name":"download-and-install-collection","triggers":[{"phrase":"get a new collection","capability":"download-and-install-collection","description":"Download and install a collection in one step"},{"phrase":"add a collection","capability":"download-and-install-collection","description":"Download and install a marketplace collection"}]},
     "refresh-marketplace-cache",
-    "check-updates"
+    {"name":"check-updates","triggers":[{"phrase":"are there collection updates","capability":"check-updates","description":"Check if installed collections have newer versions available"},{"phrase":"check collection versions","capability":"check-updates","description":"Compare installed versions against marketplace"}]}
   ],
   "dependencies": [],
   "external_dependencies": [],
