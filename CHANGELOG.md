@@ -1,5 +1,12 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.0.4] — 2026-04-19
+
+### Added
+- **Natural language trigger phrases in `collection.json`.** API entries now include trigger arrays that map conversational phrases to capabilities, powering the routing layer introduced in agent-index-core 3.0.5. Members can say things like "open marketplace" or "check for updates" instead of using `@ai:` alias syntax. Triggers are customizable per-member via `routing.json`.
+
+---
+
 ## [2.0.3] — 2026-04-14
 
 ### Changed
