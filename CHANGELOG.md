@@ -1,5 +1,22 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.1.0] — 2026-04-30
+
+### Added
+
+- **`check-updates` task v2.1.0:** Step 2 (Check Infrastructure Versions) rewritten to prefer `infrastructure_directory_url` from `agent-index.json` over the deprecated `core_version_url` and `marketplace_version_url`. The new directory file in `agent-index-resource-listings` is the single source of truth for both core and marketplace versions. Fixes the long-standing "core_version_url returns 404" issue caused by the agent-index-core repo being private (the new directory file lives in the public resource-listings repo). The deprecated URLs remain as fallbacks for pre-3.1.1 installs that haven't yet migrated.
+
+### Changed
+
+- check-updates task: 2.0.0 → 2.1.0
+
+### Notes
+
+- The `infrastructure_directory_url` field is added to `agent-index.json` automatically by agent-index-core 3.1.1's apply-updates Phase 1 step 4 (non-destructive field migration). Members upgrading from 3.1.0 or earlier will see the field appear after running `@ai:update`.
+- Pre-3.1.1 installs running this version of `check-updates` will fall back to the legacy URLs. Since `core_version_url` is currently 404, those installs will see "unable to check" for core until they apply the 3.1.1 upgrade.
+
+---
+
 ## [2.0.4] — 2026-04-19
 
 ### Added

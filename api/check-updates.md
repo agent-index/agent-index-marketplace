@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.0.0
+version: 2.1.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -54,8 +54,9 @@ On demand. Invoked when a member or admin wants to know if anything is out of da
 
 Read `agent-index.json` from its fixed path. Extract:
 - `version` — the installed core version
-- `core_version_url` — where to check for the latest core version
-- `marketplace_version_url` — where to check for the latest marketplace version
+- `infrastructure_directory_url` — single source of truth for the latest core + marketplace versions (added in agent-index-core 3.1.1; preferred when present)
+- `core_version_url` — fallback URL for the canonical core `collection.json` (deprecated as of 3.1.1; still consulted when `infrastructure_directory_url` is absent or unreachable)
+- `marketplace_version_url` — fallback URL for the canonical marketplace `collection.json` (deprecated, same fallback semantics as `core_version_url`)
 - `marketplace_cache_path` — where the marketplace directory cache lives
 
 Read `org-config.json` from the remote filesystem via `aifs_read`. Extract:
@@ -71,25 +72,46 @@ If `org-config.json` is not readable: proceed with infrastructure checks only; s
 
 ### Step 2: Check Infrastructure Versions
 
-**Check agent-index-core:**
+The 3.1.1 + flow uses `infrastructure_directory_url` to discover both core and marketplace versions in a single fetch. Prior to 3.1.1, two separate canonical URLs were consulted; those remain as fallbacks.
 
-Fetch `core_version_url` from agent-index.json. This returns the canonical `collection.json` for agent-index-core from GitHub. Parse the `version` field from the response.
+**Primary path (3.1.1+):**
 
-Compare the fetched version against the installed version (from `agent-index-core/collection.json` on the remote filesystem via `aifs_read`).
+If `infrastructure_directory_url` is set in `agent-index.json`:
 
-Record the result:
-- If fetched version > local version: `update available` (local → latest)
-- If fetched version = local version: `up to date`
-- If fetch fails: `unable to check` (note the error; do not block)
+1. Fetch the URL. It returns a JSON object with shape:
+   ```json
+   {
+     "directory_version": "...",
+     "last_updated": "...",
+     "infrastructure": [
+       { "name": "agent-index-core", "current_version": "X.Y.Z", ... },
+       { "name": "agent-index-marketplace", "current_version": "X.Y.Z", ... }
+     ]
+   }
+   ```
+2. Find the entry where `name` is `agent-index-core`. Compare its `current_version` against the local `agent-index-core/collection.json` `version` (read via `aifs_read("/agent-index-core/collection.json")`).
+3. Find the entry where `name` is `agent-index-marketplace`. Compare its `current_version` against the local `agent-index-marketplace/collection.json` `version`.
+4. If the fetch succeeded but an expected entry is missing, record that piece as `unable to check (entry not found in directory)` and continue.
 
-**Check agent-index-marketplace:**
+Record both results:
+- If directory version > local version: `update available` (local → latest)
+- If directory version = local version: `up to date`
+- If directory version < local version: `local ahead of directory` (this is an unusual state — local install is on a version that hasn't been broadcast yet; surface as a NOTE for the admin)
 
-Fetch `marketplace_version_url`. Same process — compare fetched version against the `agent-index-marketplace/collection.json` version on the remote filesystem via `aifs_read`.
+**Fallback path (pre-3.1.1 installs OR primary fetch failed):**
 
-Record the result with the same categories.
+If `infrastructure_directory_url` is absent OR the fetch fails:
+
+1. Fall back to `core_version_url` for the core check. Fetch returns the canonical `collection.json` for agent-index-core from GitHub. Parse the `version` field.
+2. Fall back to `marketplace_version_url` for the marketplace check.
+3. Same comparison and result categories as the primary path.
+
+If a fallback URL also fails, record that piece as `unable to check (network or 404)` and continue to Step 3 with a notice.
+
+**Pre-3.1.1 installs note:** the agent-index-core repo is private, so `core_version_url` will 404 for installs that haven't yet upgraded to 3.1.1. The fix is to upgrade — once 3.1.1 lands, `infrastructure_directory_url` is migrated onto the local `agent-index.json` automatically (see apply-updates Phase 1 step 4). Until then, surface the 404 plainly so the admin understands why the check is blind.
 
 **On success:** Proceed to Step 3.
-**On fetch failure for both:** Queue notice that infrastructure checks couldn't complete due to network issues. Proceed to Step 3.
+**On all infrastructure fetches failing:** Queue notice that infrastructure checks couldn't complete due to network issues. Proceed to Step 3.
 
 ---
 
