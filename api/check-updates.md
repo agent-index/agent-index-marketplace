@@ -1,9 +1,9 @@
 ---
 name: check-updates
 type: task
-version: 2.1.0
+version: 2.1.2
 collection: agent-index-marketplace
-description: Comprehensive update check across infrastructure, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
+description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -18,11 +18,12 @@ writes_to: null
 
 ## About This Task
 
-The single command that answers "is anything out of date?" It checks three layers of the system in one sweep:
+The single command that answers "is anything out of date?" It checks four layers of the system in one sweep:
 
 1. **Infrastructure** — is agent-index-core or agent-index-marketplace itself outdated?
-2. **Installed collections** — do any marketplace collections have newer versions available?
-3. **Member capabilities** — are any of the running member's installed skills and tasks behind their collection's current version?
+2. **Filesystem adapter** — is the bundled filesystem adapter (gdrive / onedrive / s3 / etc.) behind its published version, and does it satisfy the contract level the directory advertises?
+3. **Installed collections** — do any marketplace collections have newer versions available?
+4. **Member capabilities** — are any of the running member's installed skills and tasks behind their collection's current version?
 
 The result is a clear, prioritized report showing what's current, what has updates available, and what action to take for each. No files are written — this is a read-only diagnostic.
 
@@ -33,9 +34,10 @@ Any org member can run this task, not just admins. Everyone should be able to se
 ### Inputs
 
 None required. Optionally, the member can request:
-- `--infrastructure-only` — skip collection and capability checks, just check core and marketplace
-- `--collections-only` — skip infrastructure and capability checks
-- `--my-capabilities-only` — skip infrastructure and collection checks, just check the running member's installed skills and tasks
+- `--infrastructure-only` — skip adapter, collection, and capability checks, just check core and marketplace
+- `--adapter-only` — skip everything except the filesystem adapter check
+- `--collections-only` — skip infrastructure, adapter, and capability checks
+- `--my-capabilities-only` — skip infrastructure, adapter, and collection checks, just check the running member's installed skills and tasks
 - `--quiet` — show only items that need attention (suppress "up to date" lines)
 
 ### Outputs
@@ -57,14 +59,23 @@ Read `agent-index.json` from its fixed path. Extract:
 - `infrastructure_directory_url` — single source of truth for the latest core + marketplace versions (added in agent-index-core 3.1.1; preferred when present)
 - `core_version_url` — fallback URL for the canonical core `collection.json` (deprecated as of 3.1.1; still consulted when `infrastructure_directory_url` is absent or unreachable)
 - `marketplace_version_url` — fallback URL for the canonical marketplace `collection.json` (deprecated, same fallback semantics as `core_version_url`)
+- `filesystem_adapter_directory_url` — single source of truth for the latest filesystem adapter versions across all backends (used by Step 2.5)
+- `remote_filesystem.backend` — the org's installed adapter `backend_id` (e.g., `"gdrive"`, `"onedrive"`, `"s3"`); used by Step 2.5 to find the matching directory entry
 - `marketplace_cache_path` — where the marketplace directory cache lives
+
+Also read local `mcp-servers/filesystem/adapter.json` (the bundled adapter manifest packaged with the install). Extract:
+- `version` — the installed adapter version
+- `contract_version` — the contract level the installed adapter implements (may be absent on pre-2.0 adapters)
+- `backend_id` — the adapter's own backend identifier (cross-check against `remote_filesystem.backend`; surface a warning if they differ)
+
+If `mcp-servers/filesystem/adapter.json` is not readable, Step 2.5 will record `unable to check (no installed adapter manifest)` and continue.
 
 Read `org-config.json` from the remote filesystem via `aifs_read`. Extract:
 - `installed_collections` — the list of collections the org has installed, with their versions and repo URLs
 - `agent_index_version` — the core version recorded at org setup time
 
 If `agent-index.json` is not readable: surface error and halt. This file is required.
-If `org-config.json` is not readable: proceed with infrastructure checks only; skip collection checks.
+If `org-config.json` is not readable: proceed with infrastructure and adapter checks only; skip collection checks.
 
 **On success:** Proceed to Step 2.
 
@@ -110,8 +121,60 @@ If a fallback URL also fails, record that piece as `unable to check (network or 
 
 **Pre-3.1.1 installs note:** the agent-index-core repo is private, so `core_version_url` will 404 for installs that haven't yet upgraded to 3.1.1. The fix is to upgrade — once 3.1.1 lands, `infrastructure_directory_url` is migrated onto the local `agent-index.json` automatically (see apply-updates Phase 1 step 4). Until then, surface the 404 plainly so the admin understands why the check is blind.
 
+**On success:** Proceed to Step 2.5.
+**On all infrastructure fetches failing:** Queue notice that infrastructure checks couldn't complete due to network issues. Proceed to Step 2.5.
+
+---
+
+### Step 2.5: Check Filesystem Adapter Version
+
+The bundled filesystem adapter (gdrive, onedrive, s3, etc.) carries its own version and contract level. This step compares the installed bundle against the published `filesystem-adapter-directory.json` so admins can see when a newer adapter — including bug-fix releases — is available. Mirrors the Step 2 pattern for `infrastructure_directory_url`.
+
+This step is added in v2.1.1 to fix the adapter-drift portion of bug `20260501-8d20ea22`. Before 2.1.1 this drift class was silent.
+
+**Determine the directory URL:**
+
+- If `filesystem_adapter_directory_url` is set in `agent-index.json`, use it.
+- Otherwise, fall back to the canonical raw URL in `agent-index-resource-listings`:
+  `https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/filesystem-adapter-directory.json`
+  (same fallback shape as the `infrastructure_directory_url` fix shipped in 2.1.0.)
+
+**Determine the installed backend:**
+
+- Use `remote_filesystem.backend` from `agent-index.json`. If absent, fall back to `remote_filesystem.exec.adapter`.
+- If neither is set, record `no backend configured — skipping adapter check` and proceed to Step 3.
+
+**Fetch and compare:**
+
+1. Fetch the directory URL. It returns a JSON object with shape:
+   ```json
+   {
+     "directory_version": "...",
+     "last_updated": "...",
+     "adapters": [
+       {
+         "backend_id": "gdrive",
+         "current_version": "X.Y.Z",
+         "contract_version": "A.B.C",
+         "...": "..."
+       }
+     ]
+   }
+   ```
+2. Find the entry whose `backend_id` equals the org's installed backend.
+   - **Not found:** record `org adapter — no directory tracking` (the org may be running a custom or private adapter). Skip the drift check; proceed to Step 3.
+3. Compare `entry.current_version` against the locally read `mcp-servers/filesystem/adapter.json` `version`:
+   - directory > local → `↑ update available`
+   - directory == local → `✓ up to date`
+   - directory < local → NOTE: `local ahead of directory` (this is unusual; the local install is on a version that hasn't been broadcast yet — surface for admin awareness)
+4. Compare `entry.contract_version` against the locally read `adapter.json` `contract_version`:
+   - If `installed_contract` is missing **or** numerically less than `entry.contract_version`, record a SECONDARY NOTE on the same adapter row: `contract upgrade available (X.Y.Z → A.B.C) — new adapter ops unlocked by upgrade`. This is informational; the primary status pill is set by step 3.
+   - Deeper collection-aware contract surfacing (escalating contract gaps that matter to installed collections) is tracked separately in idea `contract-version-aware-update-surfacing` and is intentionally out of scope here.
+5. If `mcp-servers/filesystem/adapter.json` is missing locally, record `unable to check (no installed adapter manifest)` and proceed.
+6. If the directory fetch fails (network, 404, etc.), record `unable to check (network or 404)` and proceed.
+
 **On success:** Proceed to Step 3.
-**On all infrastructure fetches failing:** Queue notice that infrastructure checks couldn't complete due to network issues. Proceed to Step 3.
+**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 3 without aborting the workflow.
 
 ---
 
@@ -138,16 +201,35 @@ Additionally, for each installed collection on the remote filesystem, read its `
 
 ### Step 4: Check Member Capability Versions
 
-Read the running member's `member-index.json`. For each installed skill and task:
+This step compares each member-installed capability against the version frontmatter of the corresponding capability file on the remote filesystem — **not** against the collection-level `current_version`. Capability files version independently of their collection (collection-level changes like trigger array updates, README polish, or dependency manifest tweaks bump `collection.json` `version` without touching most `api/{name}.md` files), so comparing per-capability member-index versions against collection-level versions produces false "upgrade available" results.
 
-1. Look up the collection it belongs to
-2. Read the collection's `collection.json` from the remote filesystem via `aifs_read` to get its current version
-3. Compare the `version` in the member index entry against the collection version
+This step was rewritten in v2.1.2 to fix bug `20260430-8d20ea22`. The pre-2.1.2 algorithm — compare member-index per-capability `version` against `collection.json` `current_version` — was structurally wrong: `member-index.json` stores the capability's `.md` frontmatter version (set at install/upgrade time by `org-setup`'s install flow which reads `aifs_read("/{collection}/api/{name}.md")`), not the collection-level version.
 
-Record the result for each:
-- If collection version > member version: `upgrade available` — the collection has been updated but the member's installed instance hasn't been upgraded yet
-- If collection version = member version: `current`
-- If collection `collection.json` is unreadable: `unable to check`
+**Algorithm:**
+
+Read the running member's `member-index.json`. Build a single combined list from `installed.skills` + `installed.tasks`. Maintain a per-run cache keyed by `/{collection}/api/{name}.md` to avoid re-reading the same file twice within one workflow run.
+
+For each entry:
+
+1. Let `member_version = entry.version`, `path = "/{entry.collection}/api/{entry.name}.md"`.
+2. If `path` is in the cache, use the cached result. Otherwise `aifs_read(path)` and cache the response (success or error).
+3. Classify the result:
+   - **Read succeeded, frontmatter parsed, `version` field present:**
+     Compare `remote_version` vs `member_version` using semver:
+     - `remote > member` → `upgrade available` (record severity: MAJOR / MINOR / PATCH)
+     - `remote == member` → `current`
+     - `remote < member` → NOTE: `local ahead of remote` (unusual; the member's install is on a version not yet broadcast — surface for awareness, not an error)
+   - **Read succeeded, but frontmatter has no `version` field** (malformed file):
+     `unable to check (no version in frontmatter)` — surface the path; do not abort the workflow.
+   - **`PATH_NOT_FOUND` and the collection directory exists** (`aifs_exists("/{collection}/")` returns true):
+     `capability removed from collection` — the file is gone but the collection is still present. The member's entry is now an orphan. Hint: "Say `@ai:setup` and ask to remove `{name}` — it's no longer in the {collection} collection." (See follow-up idea `org-setup-suggest-orphan-cleanup` for the consuming surface.)
+   - **`PATH_NOT_FOUND` and the collection directory is also missing:**
+     `collection unavailable` — the entire collection is gone from the remote. This is already surfaced by Step 3 as `missing — directory not found`, so suppress per-capability rows here to avoid double-flagging; just note the collection name once.
+   - **Other read failure (auth, network, etc.):**
+     `unable to check (read failed)` — surface the path and the underlying error class.
+4. Continue to the next entry. Never abort the workflow on a single capability's failure.
+
+Record the result for each capability with the comparison values that were actually used (member version, remote version, status, and severity if applicable).
 
 **On success:** Proceed to Step 5.
 
@@ -170,6 +252,11 @@ Compile all results into a prioritized report.
 > | agent-index-core | 1.0.0 | 1.1.0 | ↑ update available |
 > | agent-index-marketplace | 1.0.0 | 1.0.0 | ✓ up to date |
 >
+> **Filesystem Adapter**
+> | Adapter | Backend | Installed | Latest | Contract | Status |
+> |---|---|---|---|---|---|
+> | agent-index-filesystem-gdrive | gdrive | 2.1.3 | 2.2.0 | 1.0.0 → 2.0.0 | ↑ update available |
+>
 > **Installed Collections**
 > | Collection | Installed | Latest | Status |
 > |---|---|---|---|
@@ -178,12 +265,15 @@ Compile all results into a prioritized report.
 > | capture | 1.0.0 | 1.0.0 | ✓ up to date |
 >
 > **Your Installed Capabilities** ({N} total)
-> | Capability | Type | Collection | Your Version | Collection Version | Status |
+> | Capability | Type | Collection | Your Version | Latest Version | Status |
 > |---|---|---|---|---|---|
 > | create-project | task | projects | 2.0.0 | 3.0.0 | ↑ upgrade available |
-> | edit-project | task | projects | 2.0.0 | 3.0.0 | ↑ upgrade available |
+> | edit-project | task | projects | 2.0.0 | 2.0.0 | ✓ current |
 > | capture | task | capture | 1.0.0 | 1.0.0 | ✓ current |
+> | old-task | task | projects | 1.0.0 | — | × removed from collection |
 > ...
+>
+> *"Latest Version" is the `version` field in the capability file's frontmatter on the remote filesystem (`/{collection}/api/{name}.md`), not the collection-level `current_version`. Capability files version independently of their collection.*
 >
 > **Summary:** {N} updates available, {M} items up to date, {P} unable to check.
 >
@@ -191,6 +281,7 @@ Compile all results into a prioritized report.
 > {if update instructions are pending (last_applied_update behind latest.json)}: "Your admin has published update instructions. Say '@ai:update' to apply them — this will handle infrastructure, collection, and capability updates in one step."
 > {if no update instructions pending but updates detected}:
 > {if infrastructure updates}: "Infrastructure updates require an org admin. {if member is admin: Say '@ai:marketplace' to upgrade agent-index-core, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to upgrade infrastructure and publish update instructions.}"
+> {if adapter update available}: "Filesystem adapter has an update available. {if member is admin: Say '@ai:edit-org' → Update Adapter Bundle to refresh the bundled adapter, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to refresh the filesystem adapter bundle.}"
 > {if collection updates}: "{if member is admin: Say '@ai:marketplace' to upgrade collections, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to upgrade the {collection} collection and publish update instructions.}"
 > {if capability upgrades}: "Say '@ai:update' if update instructions are available, or '@ai:setup' to upgrade your installed capabilities manually."
 
@@ -205,12 +296,23 @@ Return a structured result (not displayed) containing:
 ```json
 {
   "infrastructure_updates": [],
+  "adapter_updates": [
+    {
+      "backend_id": "gdrive",
+      "installed": "2.1.3",
+      "latest": "2.2.0",
+      "contract_installed": "1.0.0",
+      "contract_latest": "2.0.0"
+    }
+  ],
   "collection_updates": [{"name": "projects", "installed": "2.0.0", "latest": "3.0.0"}],
   "capability_upgrades": [{"name": "create-project", "collection": "projects", "installed": "2.0.0", "latest": "3.0.0"}],
   "errors": [],
   "everything_current": false
 }
 ```
+
+`adapter_updates` is `[]` when the adapter is up to date or when the directory could not be reached. The `contract_installed` field may be null on pre-2.0 adapters that didn't declare a contract version.
 
 This structured result is consumed by session-start to generate update-available notices without displaying the full report.
 
@@ -249,9 +351,21 @@ Never show another member's capability status. Only the running member's own ins
 
 ### Edge Cases
 
-If the org has no installed collections (brand new org): skip the collections section. Only show infrastructure.
+If the org has no installed collections (brand new org): skip the collections section. Only show infrastructure and adapter.
+
+If `mcp-servers/filesystem/adapter.json` is missing locally: render the Filesystem Adapter row as `unable to check (no installed adapter manifest)`. Do not abort the workflow — this can happen on partially-bootstrapped installs.
+
+If `remote_filesystem.backend` is set to a `backend_id` not present in the directory (custom or private adapter): render the row as `org adapter — no directory tracking`. Do not flag as an error.
+
+If `mcp-servers/filesystem/adapter.json` `backend_id` differs from `remote_filesystem.backend` in `agent-index.json`: render the adapter row as `backend mismatch — agent-index.json says {x}, adapter.json says {y}`. Surface the mismatch as a NOTE; do not silently pick one over the other.
 
 If the member has no installed capabilities (brand new member): skip the capabilities section. Show infrastructure and collections if the member is an admin, otherwise show a note: "You haven't installed any capabilities yet. Say '@ai:setup' to get started."
+
+If a capability's `api/{name}.md` is missing on the remote (`PATH_NOT_FOUND`) but the collection directory still exists: render the capability row as `× removed from collection` with no "Latest Version" value. Hint: "Say `@ai:setup` and ask to remove this — it's no longer in the {collection} collection."
+
+If a capability's `api/{name}.md` is missing on the remote and the collection directory is also missing: do not render per-capability rows for that collection's orphaned member-index entries — the collection-level "missing — directory not found" row from Step 3 already surfaces the situation; per-capability noise would be redundant. Show a single suppressed-row count instead: "(N capabilities from {collection} suppressed — collection directory not found)".
+
+If a capability's `api/{name}.md` exists but its frontmatter has no `version` field: render as `unable to check (no version in frontmatter)` with the file path. Do not abort the workflow.
 
 If the remote filesystem is unreachable: report what can be checked locally (capability versions vs. local member-index records) and note that infrastructure, collection, and marketplace version checks require remote filesystem connectivity.
 

@@ -1,5 +1,53 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.1.2] — 2026-05-01
+
+### Fixed
+
+- **Bug `20260430-8d20ea22` (capability-version-comparison mismatch):** `check-updates` Step 4 no longer compares per-capability member-index `version` against collection-level `current_version`. The pre-2.1.2 algorithm produced false "upgrade available" rows whenever a collection's `collection.json` `version` advanced faster than its individual `api/{name}.md` files (the normal pattern for collection-level changes — trigger arrays, README polish, dependency manifest tweaks). On a typical install this was producing dozens of false positives, including spurious MAJOR upgrade flags. Step 4 now `aifs_read`s each capability's `.md` file, parses the frontmatter `version`, and compares against the member-index entry's recorded `version` (which is the same thing — set at install/upgrade time by `org-setup`'s install flow).
+
+### Changed
+
+- check-updates task: 2.1.1 → 2.1.2
+- Step 5 capability table column header renamed: "Collection Version" → "Latest Version" (the column now reflects the per-capability frontmatter version, not the collection-level version).
+- Step 4 algorithm now classifies `PATH_NOT_FOUND` results into "capability removed from collection" vs "collection unavailable" so orphan member-index entries are surfaced explicitly instead of silently failing.
+- Step 4 maintains a per-run cache keyed by `/{collection}/api/{name}.md` to avoid duplicate reads within a single workflow run.
+- Edge Cases section extended with capability-removed, collection-missing, and missing-frontmatter cases.
+
+### Notes
+
+- This release does **not** modify `apply-updates` or `org-setup`. The `org-setup` "Needs Attention" criterion has the same conceptual error in its prose ("the collection version in the member index" — member-index doesn't store a collection version per capability) and is tracked separately in idea `core-improvements/org-setup-capability-version-comparison-mismatch`.
+- The companion broadcast file `infrastructure-directory.json` is bumped to advertise marketplace 2.1.2.
+- Three other follow-up ideas filed in `core-improvements` and `developer-collection` cover related work that emerged during this fix's investigation: `per-capability-manifest-vs-md-version-drift` (preflight check), `check-updates-show-available-to-install` (new Available section), and `org-setup-suggest-orphan-cleanup` (consuming the new "removed from collection" signal).
+
+---
+
+## [2.1.1] — 2026-05-01
+
+### Added
+
+- **`check-updates` task v2.1.1 — Step 2.5: Check Filesystem Adapter Version.** New step inserted between infrastructure (Step 2) and collections (Step 3). Reads `filesystem_adapter_directory_url` from `agent-index.json` (with fallback to the canonical raw URL), looks up the org's installed `backend_id` (from `remote_filesystem.backend`) in the directory, and compares `current_version` against the locally installed `mcp-servers/filesystem/adapter.json` `version`. Surfaces drift as a new "Filesystem Adapter" section in the report with the same status semantics as the infrastructure rows. Also surfaces a secondary NOTE on the row when `contract_version` advances (informational only — collection-aware contract gating is tracked separately).
+- **`adapter_updates` field in lightweight-mode result.** Session-start consumers now receive an array of pending adapter updates with installed/latest versions and contract levels.
+- **New CLI flag `--adapter-only`** to scope `check-updates` to just the filesystem adapter check.
+
+### Fixed
+
+- **Bug `20260501-8d20ea22` (adapter-drift portion):** check-updates is no longer blind to filesystem adapter releases. Concretely: an org running gdrive 2.1.3 against a directory advertising gdrive 2.2.0 now sees an explicit "↑ update available" row instead of silence. The capability-comparison portion of that bug remains tracked under idea `check-updates-capability-version-comparison`.
+
+### Changed
+
+- check-updates task: 2.1.0 → 2.1.1
+- About section now describes four layers (added "Filesystem adapter") instead of three.
+- Edge Cases extended with adapter-specific failure modes (missing `adapter.json`, custom backends not in the directory, `backend_id` mismatch between `agent-index.json` and `adapter.json`).
+
+### Notes
+
+- This release does **not** modify `apply-updates`; the publish/apply path already understands `adapter-bundle-update` operations. The only change is in the diagnostic path (`check-updates`).
+- The companion broadcast file `infrastructure-directory.json` is bumped to advertise marketplace 2.1.1.
+- Two related improvements remain queued as ideas in `core-improvements`: `bundle-vs-config-adapter-drift` (local config-vs-bundle drift on a single install) and `contract-version-aware-update-surfacing` (collection-aware contract-blocker surfacing). Neither is required for this fix.
+
+---
+
 ## [2.1.0] — 2026-04-30
 
 ### Added
