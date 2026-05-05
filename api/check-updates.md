@@ -173,8 +173,35 @@ This step is added in v2.1.1 to fix the adapter-drift portion of bug `20260501-8
 5. If `mcp-servers/filesystem/adapter.json` is missing locally, record `unable to check (no installed adapter manifest)` and proceed.
 6. If the directory fetch fails (network, 404, etc.), record `unable to check (network or 404)` and proceed.
 
+**On success:** Proceed to Step 2.6.
+**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 2.6 without aborting the workflow.
+
+---
+
+### Step 2.6: Check Registered Binary Tools (added in core 3.4.0)
+
+The org may declare native binary tools via `org-config.json` → `binaries{}`. Each entry pins a target version and policy. The `infrastructure-directory.json` published by the central agent-index registry declares the latest `current_version` and `min_required_version` for each binary. This step compares the org-pinned version against (a) the directory's published current/min and (b) the locally-installed version, and surfaces the deltas.
+
+For each entry in `infrastructure-directory.json` → `binaries[]`:
+
+1. Look up the binary in `org-config.json` → `binaries{}`. If not present, record:
+   `available — not pinned (admin can run @ai:pin-binary-version <name>)`. Do not flag as needing action.
+2. If present, resolve the **target version** per the org's `policy`:
+   - `pinned` → `org_entry.version` exactly.
+   - `min` → max of `org_entry.version` and the locally-installed version.
+   - `latest` → directory's `current_version`.
+3. Validate the target against the directory's `min_required_version`. If `target < min_required_version`, record:
+   `↑ admin must update pin — org pin <version> below required floor <min>`.
+4. Read the locally-installed version from the path declared by the directory's `version_file` (e.g. `mcp-servers/permission-helper-go/version.txt`). If file missing, record `not installed`.
+5. Compare local to target:
+   - `local == target` → `up to date`.
+   - `local != target` (or not installed) → `↑ install/update available (local <local> → target <target>)`. Surface this whether the change is upgrade or downgrade — both are intentional under "pinned" policy.
+6. If the directory has no `platforms[]` entry matching the host's `os`/`arch`, surface:
+   `↑ no published binary for <os>/<arch> — ask admin to upload`.
+
+If the directory fetch fails (network, 404), record `unable to check (network or 404)` for binaries and proceed.
+
 **On success:** Proceed to Step 3.
-**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 3 without aborting the workflow.
 
 ---
 

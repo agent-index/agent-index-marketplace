@@ -1,8 +1,8 @@
 {
   "name": "agent-index-marketplace",
   "display_name": "Agent-Index Marketplace",
-  "version": "2.1.2",
-  "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org's installed collections and keep them up to date.",
+  "version": "2.2.0",
+  "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org's installed collections and keep them up to date. v2.2.0: check-updates Step 2.6 surfaces registered binary tools (per-org pin vs locally-installed vs registry-current). v2.1.x: extended adapter contract surfacing.",
   "author": "agent-index",
   "license": "proprietary",
   "category": "infrastructure",
