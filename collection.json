@@ -1,8 +1,8 @@
 {
   "name": "agent-index-marketplace",
   "display_name": "Agent-Index Marketplace",
-  "version": "2.2.0",
-  "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org's installed collections and keep them up to date. v2.2.0: check-updates Step 2.6 surfaces registered binary tools (per-org pin vs locally-installed vs registry-current). v2.1.x: extended adapter contract surfacing.",
+  "version": "2.2.1",
+  "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org's installed collections and keep them up to date. v2.2.1: check-updates 'what to do' guidance updated to point admins at `@ai:publish-updates --check-upstream` for infrastructure/adapter upgrade rows (replaces pre-3.5.0 manual git-pull-then-edit-org-then-publish-updates ritual). v2.2.0: check-updates Step 2.6 surfaces registered binary tools. v2.1.x: extended adapter contract surfacing.",
   "author": "agent-index",
   "license": "proprietary",
   "category": "infrastructure",

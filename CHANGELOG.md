@@ -1,5 +1,17 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.2.1] — 2026-05-05
+
+### Changed
+
+- **`check-updates` "what to do" admin guidance updated.** Infrastructure and adapter upgrade rows now point admins at `@ai:publish-updates --check-upstream` (introduced in `agent-index-core` 3.5.0). The new flag handles upstream fetch + local sync + bootstrap regen + CHANGELOG entry in one step, replacing the pre-3.5.0 manual `git pull → @ai:edit-org → @ai:publish-updates` ritual. The pre-3.5.0 path remains as a fallback for admins who want to inspect the bundle before publishing.
+
+## [2.2.0] — 2026-05-05
+
+### Added
+
+- **`check-updates` Step 2.6 — registered binary tools.** For each entry in `infrastructure-directory.json` → `binaries[]`, surfaces locally-installed version vs. org-pinned version vs. registry's `current_version`. Reports `available — not pinned`, `up to date`, `↑ install/update available`, `no published binary for <os>/<arch>`, or `↑ admin must update pin — below required floor`. Companion to core 3.4.0's binary-distribution architecture.
+
 ## [2.1.2] — 2026-05-01
 
 ### Fixed
