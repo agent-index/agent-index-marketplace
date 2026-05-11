@@ -1,5 +1,22 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.4.0] — 2026-05-11
+
+### Added
+
+- **`check-updates` Step 4.5 — detect capabilities available to install.** New step that runs after the per-capability version comparison (Step 4) and before the report rendering (Step 5). For each entry in `org-config.json` → `installed_collections[]` with `status: "installed"`, enumerates the collection's `collection.json` `api[]` array, cross-references against the member's `member-index.json`, and records any capabilities present in the collection but NOT installed for this member. Result lands in a new `available_capabilities[]` field in the lightweight-mode result and as a new "Available to Install" table in the full report. Mirrors the existing "Available" section in `org-setup`'s management dashboard — so members running `@ai:check-updates` get a complete picture of both *what's out of date* and *what's available to pick up* without needing to consult `@ai:setup` separately.
+
+  Gated on `--show-available` (default: on). Empty case (member has installed every capability from every installed collection) suppresses the section. "What to do" gains a corresponding hint: "Say `@ai:setup` to install any of the {Q} capabilities listed under Available to Install."
+
+  Closes idea `check-updates-show-available-to-install`. Pairs naturally with the disambiguation work landing in core 3.7.0 — admins newly routed to check-updates get the full signal, including what they could install for themselves on this org's footprint.
+
+### Changed
+
+- `check-updates` task version 2.2.1 → 2.3.0. All API manifests' `collection_version` bumped 2.3.0 → 2.4.0.
+
+---
+
+
 ## [2.3.0] — 2026-05-07
 
 ### Added

@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.2.1
+version: 2.3.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -258,6 +258,32 @@ For each entry:
 
 Record the result for each capability with the comparison values that were actually used (member version, remote version, status, and severity if applicable).
 
+**On success:** Proceed to Step 4.5.
+
+---
+
+### Step 4.5: Detect Capabilities Available to Install (added in v2.3.0)
+
+This step surfaces a fifth class of signal: **capabilities present in the org's installed collections but not yet installed for the running member**. The org might have rolled out a new task in a collection upgrade (e.g., `projects` 3.0.5 → 3.0.6 added a new `archive-project-v2` task) and the member never picked it up. Without this step, the member sees the collection-level "update available" signal but no enumeration of *what* is newly available to them.
+
+This step is gated on `--show-available` (default: on; suppress with `--no-show-available` for noise-averse callers).
+
+**Algorithm:**
+
+For each entry in `org-config.json` → `installed_collections[]` with `status: "installed"`:
+
+1. Read the collection's `collection.json` from remote: `aifs_read("/{collection}/collection.json")`. This was already done in Step 3 — reuse the cached parse.
+2. Enumerate the `api[]` array. Each entry is either a bare string (capability name) or an object with `name` and `triggers[]`. Normalize to a list of names.
+3. Cross-reference against the running member's `member-index.json`: filter to capability names NOT present in `installed.skills[]` or `installed.tasks[]` for this collection.
+4. For each available-but-uninstalled capability:
+   - Read `aifs_read("/{collection}/api/{name}.md")` and parse the frontmatter to get `version` and `type` (skill or task) — reuse the Step 4 cache if it's already there.
+   - If the file is missing or malformed: skip it (cap was orphaned at the collection level — not eligible to surface as "install this").
+   - Record `{ name, type, collection, latest_version }`.
+
+After the loop, the result is a flat list `available_capabilities[]` containing all the install-able items across all installed collections the member hasn't picked up.
+
+**Empty case.** If `available_capabilities[]` is empty (the member has everything from every installed collection), suppress the section in the report rendering — no need to surface an empty table.
+
 **On success:** Proceed to Step 5.
 
 ---
@@ -302,7 +328,17 @@ Compile all results into a prioritized report.
 >
 > *"Latest Version" is the `version` field in the capability file's frontmatter on the remote filesystem (`/{collection}/api/{name}.md`), not the collection-level `current_version`. Capability files version independently of their collection.*
 >
-> **Summary:** {N} updates available, {M} items up to date, {P} unable to check.
+> **Available to Install** ({N} capabilities) — *omitted if zero*
+> | Capability | Type | Collection | Latest Version |
+> |---|---|---|---|
+> | archive-project-v2 | task | projects | 1.0.0 |
+> | revisions | task | capture | 1.1.0 |
+> | manage-recipients | task | email-triage | 1.0.0 |
+> ...
+>
+> *Capabilities present in your org's installed collections that you haven't installed yet. Say `@ai:setup` to install any of these.*
+>
+> **Summary:** {N} updates available, {M} items up to date, {P} unable to check, {Q} capabilities available to install.
 >
 > **What to do:**
 > {if update instructions are pending (last_applied_update behind latest.json)}: "Your admin has published update instructions. Say '@ai:update' to apply them — this will handle infrastructure, collection, and capability updates in one step."
@@ -313,6 +349,7 @@ Compile all results into a prioritized report.
 > {if adapter update available AND member is NOT admin}: "Contact your org admin to refresh the filesystem adapter bundle."
 > {if collection updates}: "{if member is admin: Say '@ai:marketplace' to upgrade collections, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to upgrade the {collection} collection and publish update instructions.}"
 > {if capability upgrades}: "Say '@ai:update' if update instructions are available, or '@ai:setup' to upgrade your installed capabilities manually."
+> {if available_capabilities is non-empty}: "Say '@ai:setup' to install any of the {Q} capabilities listed under 'Available to Install'."
 
 **Quiet mode** (`--quiet`):
 
@@ -336,6 +373,7 @@ Return a structured result (not displayed) containing:
   ],
   "collection_updates": [{"name": "projects", "installed": "2.0.0", "latest": "3.0.0"}],
   "capability_upgrades": [{"name": "create-project", "collection": "projects", "installed": "2.0.0", "latest": "3.0.0"}],
+  "available_capabilities": [{"name": "archive-project-v2", "type": "task", "collection": "projects", "latest_version": "1.0.0"}],
   "errors": [],
   "everything_current": false
 }
