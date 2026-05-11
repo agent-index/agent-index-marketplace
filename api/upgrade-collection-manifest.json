@@ -1,26 +1,25 @@
 {
-  "name": "install-collection",
+  "name": "upgrade-collection",
   "type": "task",
-  "display_name": "Install Collection",
+  "display_name": "Upgrade Collection",
   "collection": "agent-index-marketplace",
   "collection_version": "2.3.0",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "eol_date": null,
   "eol_warning_days": 60,
-  "stateful": true,
+  "stateful": false,
   "produces_artifacts": false,
   "produces_shared_artifacts": false,
-  "setup_template": "install-collection-setup.md",
+  "setup_template": "upgrade-collection-setup.md",
   "dependency_status": "complete",
   "missing_dependencies": [],
-  "parameter_provenance": {
-    "marketplace_cache_ttl_hours": "org-mandated"
-  },
+  "parameter_provenance": {},
   "dependencies": {
     "skills": [],
-    "tasks": []
+    "tasks": ["refresh-marketplace-cache"]
   },
   "external_dependencies": [],
+  "optional_external_dependencies": [],
   "reads_from": null,
-  "writes_to": null
+  "writes_to": "/org-config.json, /<collection>/, /shared/updates/"
 }

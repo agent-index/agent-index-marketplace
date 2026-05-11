@@ -1,5 +1,22 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.3.0] — 2026-05-07
+
+### Added
+
+- **New `@ai:upgrade-collection <name>` task** at `api/upgrade-collection.md`. Closes bug `20260502-8d20ea22` — the `download-collection` and `download-and-install-collection` tasks have referenced `@ai:upgrade-collection` since v3.1.0 ("'{collection}' is already installed. To upgrade it, say '@ai:upgrade-collection {name}'.") but no such task existed; admins reading the prompt hit a dead end. After this release, the alias resolves to a real task. Surface: `@ai:upgrade-collection <name> [--to <version>] [--check-upstream] [--dry-run]`. Counterpart to `@ai:publish-updates --check-upstream` (infrastructure) and `@ai:edit-org → Update Adapter Bundle` (filesystem adapters). Workflow: refresh marketplace cache, look up target version (validate against `min_required_version` if defined), download the new zip from the directory's `zip_url`, stage, compute diff against remote, surface plan summary, get admin Y/N, upload changed files via `aifs_write` with LF normalization, delete remote-only files (with the documented preserve list), update `org-config.json` with the new version + upgraded_date, write a `collection-update` CHANGELOG entry to `/shared/updates/update-log.json` for member-side `@ai:apply-updates` consumption, verify post-upload, surface result.
+
+- **Setup-responses preservation as a documented Directive.** During upgrade, `<collection>/setup/collection-setup-responses.md` and any future per-org state files under `<collection>/state/` are explicitly NOT overwritten or deleted by the upgrade flow. They contain answers the org provided during the original `install-collection` setup interview — org-specific data, not collection content. Re-running setup is disruptive and shouldn't be a side effect of upgrading.
+
+### Changed
+
+- All API manifests' `collection_version` bumped 2.2.1 → 2.3.0.
+- `collection.json` `api[]` array gains the `upgrade-collection` entry with three trigger phrases: "upgrade collection", "update collection", "refresh collection".
+
+### Migration notes
+
+After this release lands, marketplace collections have a coherent admin upgrade verb. The existing `download-collection` / `download-and-install-collection` halt messages (which point at `@ai:upgrade-collection`) finally resolve to a real task. Pre-2.3.0 admins who hit those messages had to manually fetch + upload + bump org-config — same flow this task now automates.
+
 ## [2.2.1] — 2026-05-05
 
 ### Changed
