@@ -1,5 +1,21 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.5.0] — 2026-05-13
+
+### Added
+
+- **`check-updates` 2.3.0 → 2.4.0: contract-version-aware surfacing** (closes idea `contract-version-aware-update-surfacing`). New Step 4a computes `max(requires_contract_version)` across all installed collections and compares against the local adapter's `contract_version`. Three surfacing modes: (a) `installed_contract >= required` — optional passive informational column on the adapter row; (b) `installed_contract < required` — top-of-report BLOCKER naming the driving collection(s) plus the recommended remedy (`@ai:publish-updates --check-upstream`); (c) `installed_contract < directory_contract` but no installed collection requires the higher contract — keep the existing passive opportunity NOTE on the adapter row (no escalation).
+- **Lightweight-mode result gains `contract_blockers[]`**, populated by Step 4a so session-start can surface a one-line warning at next session entry.
+- Collections may declare an optional top-level `requires_contract_version` field in `collection.json` (semver string). Authoring guidance added to `agent-index-core/collection-authoring-guide.md` § "Declaring adapter contract requirements" — defaults to `"1.0.0"` for collections that don't declare it (the floor every supported adapter meets); set to `"2.0.0"` for any collection that uses contract-2.0 ops (`aifs_share`, `aifs_unshare`, `aifs_get_permissions`, `aifs_search`, `aifs_transfer_ownership`, revision-aware writes).
+
+### Notes
+
+- `check-updates` task version bumped 2.3.0 → 2.4.0. All API manifests' `collection_version` bumped 2.4.0 → 2.5.0.
+- Companion releases ship in core 3.7.2 (CHANGELOG documents the multi-repo cleanup patch).
+
+---
+
+
 ## [2.4.0] — 2026-05-11
 
 ### Added

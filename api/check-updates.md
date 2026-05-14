@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.3.0
+version: 2.4.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -169,7 +169,28 @@ This step is added in v2.1.1 to fix the adapter-drift portion of bug `20260501-8
    - directory < local → NOTE: `local ahead of directory` (this is unusual; the local install is on a version that hasn't been broadcast yet — surface for admin awareness)
 4. Compare `entry.contract_version` against the locally read `adapter.json` `contract_version`:
    - If `installed_contract` is missing **or** numerically less than `entry.contract_version`, record a SECONDARY NOTE on the same adapter row: `contract upgrade available (X.Y.Z → A.B.C) — new adapter ops unlocked by upgrade`. This is informational; the primary status pill is set by step 3.
-   - Deeper collection-aware contract surfacing (escalating contract gaps that matter to installed collections) is tracked separately in idea `contract-version-aware-update-surfacing` and is intentionally out of scope here.
+
+4a. **Compute collection contract requirements and escalate contract gaps that block installed capabilities** (added in v2.5.0; closes idea `contract-version-aware-update-surfacing`). The basic contract-gap signal in step 4 is informational — it tells the admin "an upgrade is available" but doesn't tell them whether anything actually depends on it. v2.5.0 wires the gap to the org's installed-collection footprint to produce a stronger signal when the contract gap is a hard blocker.
+
+   1. For each entry in `org-config.json` → `installed_collections[]` with `status: "installed"`, read the remote `aifs_read("/{name}/collection.json")` (reuse the Step 3 cache).
+   2. Check each collection's `collection.json` for an optional top-level `requires_contract_version` field (semver string, e.g. `"2.0.0"`). Collections that don't declare it are treated as `"1.0.0"` (the floor — every supported adapter implements contract 1.0.0 ops).
+   3. Compute `required_contract = max(requires_contract_version)` across all installed collections. Track which collection(s) drove the max so we can name them in the report.
+   4. Compare `installed_contract` (from local `adapter.json`) against `required_contract`:
+      - **`installed_contract >= required_contract`** — no blocker. Optionally render a passive informational column on the adapter row: `contract: {installed_contract} ✓ meets org's required minimum`.
+      - **`installed_contract < required_contract`** — render a **BLOCKER** as the first section of the report, above the Infrastructure table:
+
+        > **⚠ Filesystem adapter contract below required minimum**
+        >
+        > Your installed adapter is at contract `{installed_contract}`. Installed collection(s) require contract `{required_contract}`: {comma-separated list of collections driving the max}.
+        >
+        > Capabilities in those collections will fail at runtime until the adapter is upgraded. Run `@ai:publish-updates --check-upstream` (admin) to fetch a contract-`{required_contract}+` adapter bundle. The current contract gap is a hard prerequisite — not just a nice-to-have upgrade.
+      - **`installed_contract < entry.contract_version` BUT `installed_contract >= required_contract`** — contract upgrade is available upstream but no installed collection depends on it yet. Keep the existing SECONDARY NOTE on the adapter row from step 4 (informational opportunity); do NOT escalate to a blocker.
+   5. Record the result in the lightweight-mode `contract_blockers[]` field so session-start can surface a one-line warning at next session entry: `[{ "required_contract": "...", "installed_contract": "...", "driving_collections": [...] }]` if blocked, empty otherwise.
+
+   **Notes:**
+   - `requires_contract_version` is opt-in for collection authors. The default-to-`"1.0.0"` baseline means existing collections without the field continue to render with no blocker (the floor everyone meets).
+   - The `requires_contract_version` field is per-collection, not per-API-member, for now. A future iteration could move it down to individual capabilities (since only some tasks within a collection may use contract-2.0 ops), but the per-collection grain is sufficient to surface the blocker class today.
+   - Collection authors who use contract-2.0 adapter ops (`aifs_share`, `aifs_unshare`, `aifs_get_permissions`, `aifs_search`, `aifs_transfer_ownership`, revision-aware writes) MUST declare `requires_contract_version: "2.0.0"` in their `collection.json`. See `agent-index-core/collection-authoring-guide.md` § "Declaring adapter contract requirements" for details.
 5. If `mcp-servers/filesystem/adapter.json` is missing locally, record `unable to check (no installed adapter manifest)` and proceed.
 6. If the directory fetch fails (network, 404, etc.), record `unable to check (network or 404)` and proceed.
 
@@ -374,6 +395,7 @@ Return a structured result (not displayed) containing:
   "collection_updates": [{"name": "projects", "installed": "2.0.0", "latest": "3.0.0"}],
   "capability_upgrades": [{"name": "create-project", "collection": "projects", "installed": "2.0.0", "latest": "3.0.0"}],
   "available_capabilities": [{"name": "archive-project-v2", "type": "task", "collection": "projects", "latest_version": "1.0.0"}],
+  "contract_blockers": [],
   "errors": [],
   "everything_current": false
 }
