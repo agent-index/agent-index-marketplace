@@ -1,5 +1,18 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.6.0] — 2026-05-20 — companion to core 3.7.3 "Install-Layer Reliability"
+
+### Fixed
+
+- **Allowlist message in `refresh-marketplace-cache.md` Step 3** (Step 3 no-cache hard-stop path) and **`setup/collection-setup.md` Step 5** (initial-cache-fetch hard-stop path) extended from the single `raw.githubusercontent.com` host to the full canonical four-host list: `raw.githubusercontent.com`, `github.com`, `api.github.com`, `codeload.github.com`. The previous one-host messages were a known drift relative to the broader allowlist need — `codeload.github.com` was missing from every prose surface; admins who followed the marketplace-task guidance allowlisted only one host and then failed on first collection install. (Companion fix for bug `20260515-8d20ea22`; canonical host list lives in `agent-index-core/templates/network-allowlist.template.json` as of core 3.7.3.) Messages also reference the new `@ai:verify-network-allowlist` task as the canonical way to test coverage across all required hosts.
+
+### Notes
+
+- **Versions:** `agent-index-marketplace` collection 2.5.0 → 2.6.0. `refresh-marketplace-cache` task 2.0.0 → 2.1.0. All API manifests' `collection_version` bumped to 2.6.0. No other task content changes.
+- **Coordination with core 3.7.3:** these are pure prose updates that mirror core's canonical host list. The actual reachability-check logic and standalone verify task live in core; the marketplace messages just point admins at the same hosts and tooling.
+
+---
+
 ## [2.5.0] — 2026-05-13
 
 ### Added

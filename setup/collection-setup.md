@@ -52,10 +52,18 @@ This sets up the marketplace for your org. It initializes the local marketplace 
 ```
 5. If initial cache fetch fails (network unreachable): halt and surface:
 
-   > "The marketplace directory can't be reached. Before continuing, please whitelist this URL in your Cowork network settings:
-   > `https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/marketplace-directory.json`
+   > "The marketplace directory can't be reached. Before continuing, allowlist the required infrastructure hosts in your Cowork network settings:
    >
-   > Once that's done, say '@ai:refresh-marketplace-cache' to retry."
+   > - `raw.githubusercontent.com` — marketplace directory and adapter bundle downloads
+   > - `github.com` — adapter repository access
+   > - `api.github.com` — collection directory lookups
+   > - `codeload.github.com` — collection zip archive downloads (added in core 3.7.3)
+   >
+   > **To allowlist:** claude.ai → Admin Settings → Capabilities → Network access → add each host above. Start a new Cowork session for the change to take effect.
+   >
+   > **Or run `@ai:verify-network-allowlist`** to test all required hosts at once.
+   >
+   > Once your allowlist is complete, say '@ai:refresh-marketplace-cache' to retry."
 
    Do not write a cache file. Do not proceed to step 6 until the admin confirms the URL is reachable and the fetch succeeds.
 

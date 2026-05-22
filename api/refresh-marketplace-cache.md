@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.0.0
+version: 2.1.0
 collection: agent-index-marketplace
 description: Fetches the latest marketplace directory from GitHub and updates the local cache. Run automatically when the cache is stale, or manually at any time.
 stateful: false
@@ -79,10 +79,18 @@ Check whether a local cache already exists at `/shared/marketplace-cache/marketp
 - **No cache exists, fetch failed (hard stop):**
   - In both automatic and manual mode: surface the following and halt. Do not proceed. Wait for admin confirmation before retrying:
 
-    > "The marketplace directory can't be reached and no local cache exists. Before continuing, please whitelist this URL in your Cowork network settings:
-    > `https://raw.githubusercontent.com/agent-index/agent-index-resource-listings/refs/heads/main/marketplace-directory.json`
+    > "The marketplace directory can't be reached and no local cache exists. Before continuing, allowlist the required infrastructure hosts in your Cowork network settings:
     >
-    > Once that's done, say '@ai:refresh-marketplace-cache' to retry."
+    > - `raw.githubusercontent.com` — marketplace directory and adapter bundle downloads
+    > - `github.com` — adapter repository access
+    > - `api.github.com` — collection directory lookups
+    > - `codeload.github.com` — collection zip archive downloads (added in core 3.7.3 to close bug 20260515-8d20ea22)
+    >
+    > **To allowlist:** claude.ai → Admin Settings → Capabilities → Network access → add each host above. Start a new Cowork session for the change to take effect.
+    >
+    > **Or run `@ai:verify-network-allowlist`** to test all required hosts at once and see exactly which are still missing.
+    >
+    > Once your allowlist is complete, say '@ai:refresh-marketplace-cache' to retry."
 
 ---
 
