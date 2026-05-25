@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.4.0
+version: 2.5.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -118,6 +118,8 @@ If `infrastructure_directory_url` is absent OR the fetch fails:
 3. Same comparison and result categories as the primary path.
 
 If a fallback URL also fails, record that piece as `unable to check (network or 404)` and continue to Step 3 with a notice.
+
+**Detect allowlist-blocked failures** (added in core 3.7.4 / marketplace 2.7.0 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`): if the fetch failure shape matches the allowlist-blocked signature (HTTP 403 with empty body and no upstream-server headers, OR connection-refused, OR connection-timeout against `raw.githubusercontent.com`), do not record the result as a generic "network or 404." Instead, surface the canonical Allowlist Failure Recognition message (see `agent-index-core/collection-authoring-guide.md` § "Allowlist failure recognition") naming `raw.githubusercontent.com` as the blocked host. Recommend `@ai:verify-network-allowlist` to test all required hosts at once. The check itself still continues (so adapter and other components can be checked even if infra checks are blocked), but the admin sees the specific actionable diagnosis rather than a generic notice.
 
 **Pre-3.1.1 installs note:** the agent-index-core repo is private, so `core_version_url` will 404 for installs that haven't yet upgraded to 3.1.1. The fix is to upgrade — once 3.1.1 lands, `infrastructure_directory_url` is migrated onto the local `agent-index.json` automatically (see apply-updates Phase 1 step 4). Until then, surface the 404 plainly so the admin understands why the check is blind.
 

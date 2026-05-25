@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.1.0
+version: 2.2.0
 collection: agent-index-marketplace
 description: Fetches the latest marketplace directory from GitHub and updates the local cache. Run automatically when the cache is stale, or manually at any time.
 stateful: false
@@ -68,29 +68,23 @@ Download the marketplace directory from `source_url`.
 
 If fetch succeeds: proceed to Step 4.
 
-If fetch fails (network error, GitHub unavailable):
+If fetch fails:
 
-Check whether a local cache already exists at `/shared/marketplace-cache/marketplace-directory.json`:
+**First, classify the failure shape** (added in core 3.7.4 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`):
+
+- **Allowlist-blocked signature:** HTTP 403 with empty body and no upstream-server headers, OR connection-refused, OR connection-timeout. The host is in the canonical allowlist (`raw.githubusercontent.com` for this task) but the Cowork network allowlist doesn't permit it.
+- **Other network error:** HTTP 5xx, DNS failure, real 403 from the destination host (rate limit, etc.), or any other shape. The host responded; the issue is upstream.
+
+Then check whether a local cache already exists at `/shared/marketplace-cache/marketplace-directory.json`:
 
 - **Cache exists, fetch failed:**
   - In automatic mode: surface a non-blocking notice to the calling task — "Marketplace cache couldn't be refreshed — using cached version." Proceed with the existing cache.
   - In manual mode: surface to the admin: "Couldn't reach the marketplace at `{source_url}`. Your local cache from {last_fetched} is still available. Check your internet connection and try again." Halt.
 
 - **No cache exists, fetch failed (hard stop):**
-  - In both automatic and manual mode: surface the following and halt. Do not proceed. Wait for admin confirmation before retrying:
-
-    > "The marketplace directory can't be reached and no local cache exists. Before continuing, allowlist the required infrastructure hosts in your Cowork network settings:
-    >
-    > - `raw.githubusercontent.com` — marketplace directory and adapter bundle downloads
-    > - `github.com` — adapter repository access
-    > - `api.github.com` — collection directory lookups
-    > - `codeload.github.com` — collection zip archive downloads (added in core 3.7.3 to close bug 20260515-8d20ea22)
-    >
-    > **To allowlist:** claude.ai → Admin Settings → Capabilities → Network access → add each host above. Start a new Cowork session for the change to take effect.
-    >
-    > **Or run `@ai:verify-network-allowlist`** to test all required hosts at once and see exactly which are still missing.
-    >
-    > Once your allowlist is complete, say '@ai:refresh-marketplace-cache' to retry."
+  - In both automatic and manual mode: surface and halt. Wait for admin confirmation before retrying.
+  - **If the allowlist-blocked signature matched:** surface the canonical Allowlist Failure Recognition message (see `agent-index-core/collection-authoring-guide.md` § "Allowlist failure recognition") naming `raw.githubusercontent.com` as the blocked host. Recommend `@ai:verify-network-allowlist` to test all required hosts at once.
+  - **Otherwise (real network error):** surface — "Couldn't reach the marketplace at `{source_url}` and no local cache exists. The request reached the host but failed with `{error_detail}`. Check the source URL, GitHub status, or your network connection, then say '@ai:refresh-marketplace-cache' to retry."
 
 ---
 

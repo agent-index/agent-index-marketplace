@@ -1,7 +1,7 @@
 {
   "name": "agent-index-marketplace",
   "display_name": "Agent-Index Marketplace",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Discover, download, and install collections from the agent-index marketplace. Manage your org\u2019s installed collections and keep them up to date. v2.5.0: check-updates 2.4.0 gains contract-version-aware surfacing \u2014 adapter contract gaps that block installed collections are escalated to a top-of-report BLOCKER naming the driving collections; gaps without consequence remain a passive opportunity NOTE. Collections may declare requires_contract_version in collection.json; check-updates computes max across installed collections and compares against the local adapter\u2019s contract_version. Lightweight-mode result gains contract_blockers[]. Closes idea contract-version-aware-update-surfacing. v2.4.0: check-updates gains an Available-to-Install section \u2014 surfaces capabilities present in installed collections that the running member hasn't picked up yet, mirroring org-setup's management-dashboard signal. v2.3.0: new `@ai:upgrade-collection` task closes bug 20260502-8d20ea22 \u2014 admins can now upgrade an already-installed marketplace collection in one verb (counterpart to `@ai:publish-updates --check-upstream` for infrastructure and `@ai:edit-org \u2192 Update Adapter Bundle` for filesystem adapters). Setup-responses preserved during upgrade. CHANGELOG entry written for member-side @ai:apply-updates consumption. v2.2.x: check-updates 'what to do' guidance + Step 2.6 binary surfacing. v2.1.x: extended adapter contract surfacing.",
   "author": "agent-index",
   "license": "proprietary",

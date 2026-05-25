@@ -1,7 +1,7 @@
 ---
 name: download-and-install-collection
 type: task
-version: 2.0.0
+version: 2.1.0
 collection: agent-index-marketplace
 description: Convenience wrapper that downloads a marketplace collection and immediately runs its installation setup in a single flow.
 stateful: false
@@ -53,7 +53,7 @@ If already `downloaded`: surface "'{display_name}' has been downloaded but setup
 
 Run the full download flow from `run agent-index-marketplace task download-collection` for this collection.
 
-If download fails: halt. Do not proceed to installation.
+If download fails: halt. Do not proceed to installation. The sub-task `download-collection` is responsible for distinguishing allowlist-blocked failures from real network errors and surfacing the appropriate diagnostic (see core 3.7.4 / marketplace 2.7.0 — closes section D of idea `allowlist-failure-mode-warnings-in-tasks`). Pass through whatever message the sub-task surfaces — do not re-wrap.
 
 **On success:** Proceed to Step 3.
 

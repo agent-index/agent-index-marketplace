@@ -1,5 +1,25 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.7.0] — <RELEASE_DATE> — companion to core 3.7.4 "Closing the Loop"
+
+### Added
+
+- **Allowlist failure-mode detection branches** in 4 network-dependent tasks (implements section D of idea `allowlist-failure-mode-warnings-in-tasks`). When a fetch fails with the allowlist-blocked signature (HTTP 403 + empty body + no upstream headers, OR connection-refused, OR connection-timeout), the task surfaces the canonical Allowlist Failure Recognition message naming the missing host instead of a generic network-error message. Detection heuristic + canonical message format documented in `agent-index-core/collection-authoring-guide.md` (added in core 3.7.4).
+
+  Tasks updated:
+  - `refresh-marketplace-cache` 2.1.0 → 2.2.0 (Step 3 no-cache hard-stop path)
+  - `download-collection` 2.0.0 → 2.1.0 (Step 4 download/upload path)
+  - `download-and-install-collection` 2.0.0 → 2.1.0 (Step 2 — sub-task delegation; pass-through messaging)
+  - `check-updates` 2.4.0 → 2.5.0 (Step 2 infrastructure-fetch path; check continues with notice but admin sees specific actionable diagnosis)
+
+### Notes
+
+- All API manifests' `collection_version` bumped 2.6.0 → 2.7.0.
+- `install-collection` was originally listed in the scope but does NOT do HTTP fetches (it reads from remote filesystem via `aifs_*` on already-downloaded local + remote state). No edit needed; scope-divergence captured in the 3.7.4 decision record.
+- Companion release: agent-index-core 3.7.4 "Closing the Loop" — ships the authoring-guide section, the publish-updates Step 0a allowlist branch (the other GitHub-fetch surface), and three other unrelated work-streams.
+
+---
+
 ## [2.6.0] — 2026-05-20 — companion to core 3.7.3 "Install-Layer Reliability"
 
 ### Fixed

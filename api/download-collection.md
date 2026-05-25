@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.0.0
+version: 2.1.0
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Downloads as ZIP and uploads to remote via aifs_write.
 stateful: false
@@ -98,7 +98,10 @@ Record `install_method: zip`.
 4. Upload all collection files to `/{collection-name}/` on the remote filesystem via `aifs_write`
 5. Clean up local temporary files
 
-If download or upload fails for any reason: surface the specific error. Do not write to `org-config.json`. The remote filesystem should be clean — if a partial directory was created on the remote, remove it via `aifs_delete` before reporting failure.
+If download or upload fails: classify the failure shape first (added in core 3.7.4 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`):
+
+- **Allowlist-blocked signature on the download** (HTTP 403 with empty body and no upstream-server headers, OR connection-refused, OR connection-timeout against `codeload.github.com` or `github.com`): surface the canonical Allowlist Failure Recognition message (see `agent-index-core/collection-authoring-guide.md` § "Allowlist failure recognition") naming `codeload.github.com` as the blocked host (or `github.com` if that's where the request was directed). Recommend `@ai:verify-network-allowlist` to test all required hosts at once. Halt without writing to `org-config.json`.
+- **Other download/upload failure** (real HTTP error from the destination, DNS failure, partial-write failure, etc.): surface the specific error. The remote filesystem should be clean — if a partial directory was created on the remote, remove it via `aifs_delete` before reporting failure. Do not write to `org-config.json`.
 
 **On success:** Proceed to Step 5.
 
