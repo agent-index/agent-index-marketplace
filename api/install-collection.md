@@ -1,9 +1,9 @@
 ---
 name: install-collection
 type: task
-version: 2.0.0
+version: 2.1.0
 collection: agent-index-marketplace
-description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install.
+description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) via permission-change-helper at Step 5.5.
 stateful: true
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -118,10 +118,35 @@ On confirmation:
 2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`, add `installed_date: {today}`
 3. Write `current-state.md` to task state directory recording completion
 
+Then run Step 5.5 (collaborative-ACL provisioning) before the final confirmation below.
+
 Confirm to admin:
 > "'{display_name}' is now installed and configured. Members can install its skills and tasks by saying '@ai:setup' in their Cowork session."
 > {if alias overrides were set}: "Alias resolutions have been recorded — members will receive the correct aliases when they install."
+> {if collaborative ACLs were provisioned}: "Collaborative access provisioned: {recipients} now have {roles} on {paths}."
 > {if external dependencies}: "Reminder: this collection requires access to {external systems}. Make sure members have the necessary credentials before they try to use it."
+
+---
+
+### Step 5.5: Provision Collaborative ACLs
+
+Some collections need members to write into shared collaborative folders (e.g., bug-reports' `bugs/`, projects' shared project tree). Members are otherwise reader-only on `/shared`. A collection declares the grants it needs in a `collaborative-acls.json` file at its root; this step provisions them. Permission changes are **never** applied with `aifs_share` directly — they go through the `permission-change-helper` skill, which the admin reviews and Accepts (per standards.md § "Permission-Modifying Operations" and § "Collaborative Folder ACLs").
+
+1. **Check for the declaration.** `aifs_exists("/{collection-name}/collaborative-acls.json")`. If absent: skip this step entirely (the collection has no collaborative folders) and proceed to the confirmation message.
+2. **Read & resolve.** `aifs_read` it; parse `acls[]`. Resolve `{param}` placeholders from the just-written `collection-setup-responses.md` (e.g., `{bug_log_path}`) and from `org-config.json` (`{all_members_group}` ← `remote_filesystem.connection.all_members_group`; `{domain}` if used). If any referenced placeholder cannot be resolved, surface a clear blocker, **skip provisioning** (do not guess a recipient or path), and note it in the confirmation so the admin can fix and re-run.
+3. **Capture current state & filter no-ops.** For each acl entry, `aifs_get_permissions(path)`. Drop entries already satisfied:
+   - `inherit: true` grant → drop if `recipient` already has ≥ `role` on `path` (direct or via the same group).
+   - `inherit: false` + `restrict: true` → drop if the inherited grant being removed is already absent.
+   If nothing remains: surface "Collaborative access already provisioned (no changes needed)." and proceed.
+4. **Compose one spec.** Build a single `permission-change-helper` spec (`version: "1.0"`, or `"1.1"` if any entry uses `inherit`) whose `operations[]` are the remaining entries mapped to `{op:"share", resource, recipient, role[, inherit]}`, each with its `before` populated from step 3.
+5. **Invoke `permission-change-helper`.** The admin reviews the single batched page and clicks Accept; the apply runs under the admin's own OAuth token. (Requires the admin to hold organizer/owner on the target folders — required anyway for any `inherit:false` op, and the helper binary must be `permission-helper-go ≥ 0.3.0` for `inherit:false`.)
+6. **Branch on the returned outcome:**
+   - `applied` (or `partial_failure` with the critical grants applied): the helper has already verified post-state. Record the provisioned grants for the confirmation message.
+   - `rejected` / `page_closed` / `timed_out`: surface "Collaborative access was NOT provisioned — members will not be able to write to {paths} until this is done. Re-run '@ai:install-collection {collection-name}' (reconfigure) to retry." Do **not** roll back the installation.
+   - `binary_not_found`: direct the admin to '@ai:update' (install/upgrade the helper binary), then retry this step.
+7. Proceed to the confirmation message.
+
+This step is the **only** place install-collection touches permissions, and only via `permission-change-helper`. It is idempotent (step 3 filter) and safe to re-run for backfill on already-installed orgs.
 
 ---
 

@@ -1,5 +1,17 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.8.0] — 2026-05-31 — collaborative-ACL provisioning
+
+### Added
+
+- **`install-collection` 2.0.0 → 2.1.0: Step 5.5 — provision collaborative-folder ACLs.** After writing setup-responses and marking the collection installed, install-collection now checks for a `collaborative-acls.json` at the collection root. If present, it resolves the declared `{param}` placeholders (from `collection-setup-responses.md` + `org-config.json`), filters grants already satisfied (idempotent), composes a single `permission-change-helper` spec, and routes it for admin review + Accept. This is the supported mechanism for granting members write access to a collection's shared collaborative folders (e.g. bug-reports' `bugs/`) under the least-privilege access model — collections never call `aifs_share` directly. Pairs with `agent-index-core` standards.md § "Collaborative Folder ACLs" and bug-reports 1.3.0. Supports bug `20260531-8d20ea22`.
+
+### Notes
+
+- `install-collection` task 2.0.0 → 2.1.0. `collection.json` 2.7.0 → 2.8.0. `install-collection-manifest.json` `collection_version` → 2.8.0; remaining API manifests' `collection_version` reconcile to 2.8.0 on members' next `apply-updates` (manifest-sync subroutine).
+
+---
+
 ## [2.7.0] — <RELEASE_DATE> — companion to core 3.7.4 "Closing the Loop"
 
 ### Added
