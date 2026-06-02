@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.5.0
+version: 2.6.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -85,11 +85,13 @@ If `org-config.json` is not readable: proceed with infrastructure and adapter ch
 
 The 3.1.1 + flow uses `infrastructure_directory_url` to discover both core and marketplace versions in a single fetch. Prior to 3.1.1, two separate canonical URLs were consulted; those remain as fallbacks.
 
+> **Cache-buster (required for ALL directory/version fetches in this task — Steps 2, 2.5, 2.6; closes bug `20260601-8d20ea22-2`):** the fetch layer caches `raw.githubusercontent.com` responses keyed on the exact URL and serves stale bytes for a long time, so a directory fetch right after a release silently returns pre-release versions and the task wrongly reports "up to date." Before every directory/version GET, append a unique cache-buster query param — e.g. `?t={current unix epoch seconds}` (use `&t=…` if the URL already has a query string). This forces a fresh fetch. Apply it to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
+
 **Primary path (3.1.1+):**
 
 If `infrastructure_directory_url` is set in `agent-index.json`:
 
-1. Fetch the URL. It returns a JSON object with shape:
+1. Fetch the URL **with the cache-buster appended** (see above). It returns a JSON object with shape:
    ```json
    {
      "directory_version": "...",

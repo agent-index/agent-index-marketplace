@@ -1,5 +1,17 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.9.0] — 2026-06-02 — cache-bust directory fetches
+
+### Fixed
+
+- **`check-updates` 2.5.0 → 2.6.0 and `refresh-marketplace-cache` 2.2.0 → 2.3.0 now append a cache-buster query param (`?t={unix_seconds}`) to every directory/version fetch** (closes bug `20260601-8d20ea22-2`). The fetch layer caches `raw.githubusercontent.com` responses keyed on the exact URL and serves stale bytes long after a push. Symptom: an org running `@ai:check-updates` shortly after a release silently reads pre-release versions and reports "✓ up to date" (no error), and `refresh-marketplace-cache` re-caches the *old* catalog. check-updates applies the buster to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and fallback `*_version_url` (Steps 2 / 2.5 / 2.6); refresh-marketplace-cache applies it to the marketplace directory fetch. Companion: `agent-index-core` `publish-updates` 3.6.0 applies the same buster to its `--check-upstream` infrastructure + zip fetches.
+
+### Notes
+
+- `check-updates` 2.5.0 → 2.6.0; `refresh-marketplace-cache` 2.2.0 → 2.3.0; `collection.json` 2.8.0 → 2.9.0. Bootstrapping caveat: because this very bug hides new versions, the **first** deployment of 2.9.0 to an org must be pulled with a manual cache-bust (a distinct query param on the directory URL); subsequent fetches self-bust.
+
+---
+
 ## [2.8.0] — 2026-05-31 — collaborative-ACL provisioning
 
 ### Added

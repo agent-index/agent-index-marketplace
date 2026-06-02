@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.2.0
+version: 2.3.0
 collection: agent-index-marketplace
 description: Fetches the latest marketplace directory from GitHub and updates the local cache. Run automatically when the cache is stale, or manually at any time.
 stateful: false
@@ -64,7 +64,7 @@ In manual mode: always proceed to Step 3 regardless of expiry.
 
 ### Step 3: Fetch Latest Directory
 
-Download the marketplace directory from `source_url`.
+Download the marketplace directory from `source_url`, **appending a cache-buster query param** — e.g. `{source_url}?t={current unix epoch seconds}` (use `&t=…` if `source_url` already has a query string). This is required: the fetch layer caches `raw.githubusercontent.com` by exact URL and otherwise serves a stale directory for a long time, so a refresh right after a release would re-cache the *old* catalog and miss the new versions (bug `20260601-8d20ea22-2`). The cache-buster forces a fresh pull.
 
 If fetch succeeds: proceed to Step 4.
 
