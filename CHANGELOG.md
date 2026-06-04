@@ -1,5 +1,18 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.9.1] — 2026-06-04 — upgrade-collection provisioning detection
+
+### Added
+
+- **`upgrade-collection` 1.0.0 → 1.1.0 — Step 6.5 "Detect Provisioning Needs".** After the staging-vs-remote diff, if the target version adds or changes `collaborative-acls.json` or `setup/collection-setup.md`, the task sets `provisioning_needed`: the Step 7 plan shows a **PROVISIONING REQUIRED** block (including any "Requires Admin Attention" text from the staged CHANGELOG), and the Step 11 result explicitly marks the upgrade **NOT YET FUNCTIONAL** until the admin runs `@ai:install-collection {name}` (idempotent — re-runs the setup interview preserving answers, creates new shared folders, applies ACL grants via the permission helper). The task must not present such an upgrade as complete and should offer to run install-collection immediately.
+
+### Notes
+
+- Encodes post-release finding **F1** from the strategy 1.0.3 → 1.1.0 upgrade (2026-06-04): file sync + verification passed while `share-strategy` was broken org-wide — the pointer-index folder and its `all@` writer grant were never provisioned, because `upgrade-collection` is file sync only.
+- Companion release: core 3.8.1 (`apply-updates` member-state self-heal — finding F3).
+
+---
+
 ## [2.9.0] — 2026-06-02 — cache-bust directory fetches
 
 ### Fixed

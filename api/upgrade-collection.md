@@ -1,9 +1,9 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.0.0
+version: 1.1.0
 collection: agent-index-marketplace
-description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Closes the @ai:upgrade-collection alias that download-collection and download-and-install-collection have referenced since v3.1.0.
+description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -115,6 +115,17 @@ For each file in the staged tree, compare against the corresponding remote file 
 
 The staging-vs-remote diff result is the "upgrade plan." If counts are `upload: 0, delete: 0, synced: N`: surface "`{name}` is already at the target version's content; nothing to upload." Halt cleanly.
 
+### Step 6.5: Detect Provisioning Needs
+
+File sync alone is NOT a complete upgrade when the target version changes access control or org setup. From the Step 6 diff, set `provisioning_needed = true` if either:
+
+- **`collaborative-acls.json`** is `local_only` or `differs` — the new version declares ACL grants that only `install-collection` Step 5.5 applies (via `permission-change-helper`; this task never touches permissions).
+- **`setup/collection-setup.md`** is `local_only` or `differs` — the setup interview changed (parameters added/removed, new Setup Completion steps such as creating shared folders). The org's `collection-setup-responses.md` may now be stale or reference retired parameters.
+
+As a supplementary signal, check the staged `CHANGELOG.md` for a "Requires Admin Attention" section under the target version and include its text in the plan if present.
+
+This detection gates Steps 7 and 11 below. Lesson encoded from the strategy 1.0.3→1.1.0 upgrade (2026-06-04): the sync succeeded, verification passed, but `share-strategy` was broken org-wide because the index folder and its grant were never provisioned.
+
 ### Step 7: Present Plan and Confirm
 
 Surface the plan summary to the admin:
@@ -136,6 +147,15 @@ Migration:
   /<collection>/upgrade/{from_major}-to-{target_major}.md that may need attention
   during member-side @ai:apply-updates. Members will see the script's instructions
   during their upgrade.
+
+{if provisioning_needed}
+⚠ PROVISIONING REQUIRED:
+  This version changes {collaborative-acls.json / the setup interview / both}.
+  After the file sync, you MUST run @ai:install-collection {name} to complete the
+  upgrade (it is idempotent: re-runs the setup interview preserving prior answers,
+  creates any new shared folders, and applies ACL grants via the permission helper).
+  The upgrade is NOT functional until that step is done.
+  {CHANGELOG "Requires Admin Attention" text, if found}
 
 Proceed with upgrade? [Y/N]
 ```
@@ -195,7 +215,13 @@ On success surface:
   Files: {N} uploaded, {M} deleted, {P} preserved
   Members will pick up the upgrade on their next @ai:apply-updates
 {if migration script: "  Members will see the migration script's instructions during their upgrade."}
+{if provisioning_needed:
+"  ⚠ NOT YET FUNCTIONAL — provisioning pending.
+  Run @ai:install-collection {name} now to apply the ACL/setup changes.
+  Until then, capabilities relying on the new grants WILL FAIL for members."}
 ```
+
+If `provisioning_needed`, do not present the upgrade as complete in any closing summary — repeat the `@ai:install-collection {name}` instruction as the explicit next step, and offer to run it immediately.
 
 ### Step 12: Cleanup
 
