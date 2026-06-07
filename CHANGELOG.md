@@ -1,5 +1,21 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.10.0] — 2026-06-07 — capability-provider registration + survey (companion to core 3.10.0)
+
+### Added
+
+- **install-collection Step 5.7** — validates `provides[]` declarations against capability-type definitions, prompts the admin, registers providers into `org-config.json` `capability_providers` (revision-aware) + logs `provider-register`; surveys `requires[]` with spec-conformant notices (never blocks install).
+- **upgrade-collection Step 6.7** — refreshes a registered provider's `operations_available`/`capability_version` when `provides[]` changes; flags provides-but-unregistered collections without auto-registering.
+- **check-updates Step 4.7** — read-only Capabilities survey: registered providers, unregistered provides, satisfied/unmet requires.
+
+### Fixed
+
+- **upgrade-collection Step 10 now pairs the published-state snapshot with the update-log write** — closes bug 20260605-8d20ea22-234936-c06b (every upgrade previously caused a false diff in the next publish-updates run).
+
+### Requires Admin Attention
+
+- Requires core 3.10.0 (capability_providers schema + capability types). Upgrade core first.
+
 ## [2.9.1] — 2026-06-04 — upgrade-collection provisioning detection
 
 ### Added

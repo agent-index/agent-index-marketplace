@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.6.0
+version: 2.7.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -312,6 +312,18 @@ After the loop, the result is a flat list `available_capabilities[]` containing 
 **On success:** Proceed to Step 5.
 
 ---
+
+### Step 4.7: Capability Provider Survey (added in 2.10.0, requires core 3.10.0)
+
+Pure read — no state changes. Build a "Capabilities" report section:
+
+1. Read `org-config.json` → `capability_providers` (absent = empty registry).
+2. For each installed collection (from `installed_collections[]`), read its remote `collection.json` and note `provides[]` and `requires[]`.
+3. Report three lists:
+   - **Registered providers:** capability → provider collection, ops count, registered date.
+   - **Unregistered provides:** collections declaring `provides[]` with no matching registry entry — "provides `{capability}` but is not registered; run '@ai:install-collection {name}' (reconfigure) to register."
+   - **Requires status:** for each consumer `requires[]` entry — SATISFIED (a registered provider implements all `required_operations`), or UNMET (`required: true` → flag as blocker-class warning; `required: false` → INFO: "optional — these features are disabled until a `{capability}` provider is installed and registered").
+4. Omit the section entirely when the registry is empty AND no installed collection declares provides/requires.
 
 ### Step 5: Present Update Report
 

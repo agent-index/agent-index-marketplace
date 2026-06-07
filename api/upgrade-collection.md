@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.1.0
+version: 1.2.0
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -126,6 +126,14 @@ As a supplementary signal, check the staged `CHANGELOG.md` for a "Requires Admin
 
 This detection gates Steps 7 and 11 below. Lesson encoded from the strategy 1.0.3→1.1.0 upgrade (2026-06-04): the sync succeeded, verification passed, but `share-strategy` was broken org-wide because the index folder and its grant were never provisioned.
 
+### Step 6.7: Refresh Capability Provider Registration (added in 2.10.0, requires core 3.10.0)
+
+If the staged `collection.json`'s `provides[]` differs from the installed one (operations added/removed, `capability_version` changed), or the collection is registered in `org-config.json` `capability_providers` with stale `operations_available`:
+
+1. Include the registration refresh in the Step 7 plan ("provider registration will be refreshed: {summary of op changes}").
+2. After the Step 8 upload succeeds: revision-aware update of the registry entry (`operations_available`, `capability_version`; preserve `provider_config` and provenance fields) + append a `provider-register` op to the update log (re-registration).
+3. If the collection has `provides[]` but was never registered (admin declined at install): note it in the plan — "provides `{capability}` but is not registered; run '@ai:install-collection {collection}' (reconfigure) to register" — and do NOT auto-register here.
+
 ### Step 7: Present Plan and Confirm
 
 Surface the plan summary to the admin:
@@ -203,6 +211,8 @@ Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array:
 ```
 
 Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler).
+
+**Pair the snapshot (added in 2.10.0 — closes bug 20260605-8d20ea22-234936-c06b):** in the same step, update `/shared/updates/published-state.json`'s entry for this collection (version + api_members) exactly as publish-updates Step 5 would. Anything that writes an update-log entry keeps published-state in step; otherwise the next `@ai:publish-updates` diffs against a stale snapshot and proposes a duplicate re-broadcast.
 
 ### Step 11: Verify and Surface Result
 

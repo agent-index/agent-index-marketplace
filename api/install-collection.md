@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.1.0
+version: 2.2.0
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) via permission-change-helper at Step 5.5.
 stateful: true
@@ -147,6 +147,17 @@ Some collections need members to write into shared collaborative folders (e.g., 
 7. Proceed to the confirmation message.
 
 This step is the **only** place install-collection touches permissions, and only via `permission-change-helper`. It is idempotent (step 3 filter) and safe to re-run for backfill on already-installed orgs.
+
+### Step 5.7: Register Capability Providers (added in 2.10.0, requires core 3.10.0)
+
+If the collection's `collection.json` declares `provides[]`:
+
+1. **Validate the declaration.** For each provides entry: resolve the capability type definition — well-known (`/agent-index-core/capability-types/{capability}.json` via `aifs_read`) or collection-custom (`/{collection}/capability-types/{name}.json`). Verify every `required: true` operation in the type is present in the entry's `operations` map, and every `implemented_by` names a member of the collection's `api[]`. On any failure: surface the specific gap ("provides declares `{op}` implemented by `{name}`, which is not in api[]"), **skip registration for that entry**, and continue the install — a broken provides declaration must not block the collection's direct use.
+2. **Prompt the admin.** "`{collection}` provides the `{capability}` capability ({N} operations). Register it as a `{capability}` provider for this org?" Include any `provider_config` values the collection's setup interview produced for the registry (e.g., brand-book's `brand_usage`).
+3. **On accept:** revision-aware update of `org-config.json` (`aifs_stat` → `if_revision` → retry on `REVISION_CONFLICT`): create `capability_providers` if absent; append `{provider_collection, capability_version, registered_date, registered_by: {admin member_hash}, operations_available, provider_config}` to `capability_providers.{capability}.providers`. If other providers already exist for the type, inform: "registered alongside {existing_list}." Then append a `provider-register` op to the update log.
+4. **On decline:** no registry write, no log op. Note in the confirmation: "Not registered as a provider — consumers will not discover it. Re-run '@ai:install-collection {collection}' (reconfigure) to register later."
+
+If the collection declares `requires[]`: for each entry, check `capability_providers` for a registered provider implementing all `required_operations`. Surface per spec — `required: true` unmet → WARNING; `required: false` unmet → INFO ("these features will be disabled"). **Never block installation.**
 
 ---
 
