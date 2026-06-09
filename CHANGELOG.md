@@ -1,5 +1,16 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.10.1] — 2026-06-08 — capture folder_id + grant code-dir reader at install (Option B; closes cr01/cr02)
+
+### Fixed
+
+- **download-collection / install-collection capture the collection folder's Drive ID** (`aifs_stat("/{name}")`) into `org-config.json` `installed_collections[].folder_id`. Members address collections by this ID for capability sync (they are not Drive members and cannot resolve `/{name}` by name — bug 20260606-…-db13).
+- **install-collection Step 5.5 now grants `all@` reader on the collection code dir `/{name}/`** via the same batched permission-change-helper Accept as the collaborative-acls writers — UNCONDITIONALLY for every installed collection, even those with no `collaborative-acls.json`. Without this, non-admin members cannot read a newly-installed collection to sync its capabilities (the brand-book 2026-06-08 failure, bug 20260608-…-cr01). The Step 5.5 absent-declaration gate no longer skips the whole step.
+
+### Requires Admin Attention
+
+- Requires core 3.10.1 (folder_id schema + id-anchored member reads + Migration 4 backfill for existing collections). Upgrade core first. Existing collections are backfilled by an admin `@ai:update` (core 3.10.1 Migration 4); new installs are correct from the start.
+
 ## [2.10.0] — 2026-06-07 — capability-provider registration + survey (companion to core 3.10.0)
 
 ### Added

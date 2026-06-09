@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.2.0
+version: 2.2.1
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) via permission-change-helper at Step 5.5.
 stateful: true
@@ -132,7 +132,7 @@ Confirm to admin:
 
 Some collections need members to write into shared collaborative folders (e.g., bug-reports' `bugs/`, projects' shared project tree). Members are otherwise reader-only on `/shared`. A collection declares the grants it needs in a `collaborative-acls.json` file at its root; this step provisions them. Permission changes are **never** applied with `aifs_share` directly — they go through the `permission-change-helper` skill, which the admin reviews and Accepts (per standards.md § "Permission-Modifying Operations" and § "Collaborative Folder ACLs").
 
-1. **Check for the declaration.** `aifs_exists("/{collection-name}/collaborative-acls.json")`. If absent: skip this step entirely (the collection has no collaborative folders) and proceed to the confirmation message.
+1. **Check for the declaration.** `aifs_exists("/{collection-name}/collaborative-acls.json")`. If absent: there are no collaborative `/shared` folders to provision — but do NOT skip the step (2.10.1): the unconditional collection code-dir reader grant + folder_id capture described at the end of this step STILL run for every installed collection. Treat `acls[]` as empty and proceed to those.
 2. **Read & resolve.** `aifs_read` it; parse `acls[]`. Resolve `{param}` placeholders from the just-written `collection-setup-responses.md` (e.g., `{bug_log_path}`) and from `org-config.json` (`{all_members_group}` ← `remote_filesystem.connection.all_members_group`; `{domain}` if used). If any referenced placeholder cannot be resolved, surface a clear blocker, **skip provisioning** (do not guess a recipient or path), and note it in the confirmation so the admin can fix and re-run.
 3. **Capture current state & filter no-ops.** For each acl entry, `aifs_get_permissions(path)`. Drop entries already satisfied:
    - `inherit: true` grant → drop if `recipient` already has ≥ `role` on `path` (direct or via the same group).
@@ -145,6 +145,10 @@ Some collections need members to write into shared collaborative folders (e.g., 
    - `rejected` / `page_closed` / `timed_out`: surface "Collaborative access was NOT provisioned — members will not be able to write to {paths} until this is done. Re-run '@ai:install-collection {collection-name}' (reconfigure) to retry." Do **not** roll back the installation.
    - `binary_not_found`: direct the admin to '@ai:update' (install/upgrade the helper binary), then retry this step.
 7. Proceed to the confirmation message.
+
+**Collection code-dir reader grant + folder_id (added in 2.10.1 — Option B id-anchored access; closes cr01/cr02).** Non-admin members are not Drive members; they can read a collection's code dir at `/{name}/` only if it is directly shared with them, and they address it by stored `folder_id` (they cannot resolve `/{name}` by name — bug 20260606-…-db13). So Step 5.5 ALSO does the following, folded into the same flow above:
+   - **Capture folder_id:** if `org-config.json` `installed_collections[{name}].folder_id` is absent, `aifs_stat("/{name}")` → write the resolved Drive ID into that entry (revision-aware). (download-collection captures it too; this covers the install-only and reconfigure paths.)
+   - **Grant all@ reader on the collection code dir:** include a `share` op (recipient `{all_members_group}`, role `reader`, resource `id:{folder_id}` if captured, else `/{name}`) in the SAME spec composed in step 4 — one batched Accept covers both the `/shared` collaborative writers AND the code-dir reader. Subject to the same step-3 no-op filter (skip if `all@` already holds reader). **Without this grant, members cannot sync the collection's capabilities** — this is the brand-book 2026-06-08 failure (cr01). A collection with no `collaborative-acls.json` still gets THIS grant: the code-dir reader is unconditional for every installed collection, independent of whether the collection declares collaborative `/shared` folders.
 
 This step is the **only** place install-collection touches permissions, and only via `permission-change-helper`. It is idempotent (step 3 filter) and safe to re-run for backfill on already-installed orgs.
 

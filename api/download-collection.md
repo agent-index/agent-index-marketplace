@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.1.0
+version: 2.1.1
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Downloads as ZIP and uploads to remote via aifs_write.
 stateful: false
@@ -119,6 +119,8 @@ If verification fails: surface the error, remove the partially uploaded director
 
 ### Step 6: Update org-config.json and Confirm
 
+**Capture the collection folder's Drive ID (added in 2.10.1, Option B id-anchored access).** After the collection files are on the remote, `aifs_stat("/{name}")` to resolve the collection code dir's Drive object ID. This `folder_id` is how members (who are not Drive members and cannot resolve `/{name}` by name — bug 20260606-…-db13) address the collection for capability sync. If the stat fails, note it and proceed with `folder_id` omitted (apply-updates Migration 4 will backfill it later).
+
 Add a new entry to `installed_collections` in `org-config.json`:
 
 ```json
@@ -126,6 +128,7 @@ Add a new entry to `installed_collections` in `org-config.json`:
   "name": "{name}",
   "display_name": "{display_name}",
   "version": "{version from collection.json}",
+  "folder_id": "{Drive ID from aifs_stat('/{name}') — omit if stat failed}",
   "downloaded_date": "{today YYYY-MM-DD}",
   "repo_url": "{repo_url}",
   "zip_url": "{zip_url}",
@@ -163,6 +166,4 @@ Never download `agent-index-core` or `agent-index-marketplace` through this task
 
 If the remote filesystem root is not writable: check `aifs_auth_status()`. If `authenticated: false`, attempt automatic re-authentication via `aifs_authenticate` and retry the write. If re-auth fails or the write still fails: surface "The remote filesystem isn't writable. I tried to restore your connection but wasn't able to. Try '@ai:member-bootstrap' to troubleshoot." Halt.
 
-If the collection's `zip_url` or `repo_url` is missing from the marketplace directory entry: surface "The download URL for '{name}' is missing from the marketplace directory. Try refreshing the cache with '@ai:refresh-marketplace-cache' and trying again."
-
-If a directory with the collection name already exists on the remote filesystem but is not in `org-config.json`: surface "A directory named '{name}' already exists on the remote filesystem but isn't recorded in your org config. This may be a leftover from a previous failed download. Would you like to overwrite it or cancel?"
+If th
