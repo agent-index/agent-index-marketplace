@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.3.0
+version: 2.4.0
 collection: agent-index-marketplace
 description: Fetches the latest marketplace directory from GitHub and updates the local cache. Run automatically when the cache is stale, or manually at any time.
 stateful: false
@@ -64,7 +64,13 @@ In manual mode: always proceed to Step 3 regardless of expiry.
 
 ### Step 3: Fetch Latest Directory
 
-Download the marketplace directory from `source_url`, **appending a cache-buster query param** — e.g. `{source_url}?t={current unix epoch seconds}` (use `&t=…` if `source_url` already has a query string). This is required: the fetch layer caches `raw.githubusercontent.com` by exact URL and otherwise serves a stale directory for a long time, so a refresh right after a release would re-cache the *old* catalog and miss the new versions (bug `20260601-8d20ea22-2`). The cache-buster forces a fresh pull.
+Download the marketplace directory from `source_url` **using the Distribution fetch protocol (SHA-pinned) — standards.md § "Distribution fetch protocol"** (replaces the 2.9.0 cache-buster in marketplace 2.11.0; closes bug `20260601-8d20ea22-2`):
+
+1. Resolve the repo's branch head SHA: `GET https://api.github.com/repos/{owner}/{repo}/commits/{branch}` → `.sha` (derive `{owner}/{repo}/{branch}/{path}` from `source_url`).
+2. Fetch `https://raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. Record `source: pinned` + the SHA.
+3. If SHA resolution fails: fetch `https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (record `source: jsdelivr-fallback`); if that also fails, fetch the bare `source_url` (record `source: unpinned`).
+
+Bare branch-form raw URLs MUST NOT be fetched as the primary path: the fetch layer caches them by exact URL and `?t=` cache-busters are **stripped on the raw redirect**, so a refresh right after a release re-caches the *old* catalog with no error. Fallback-sourced (`jsdelivr-fallback`/`unpinned`) results are advisory: Step 4's comparison rules still apply, and a fallback result that looks older or identical must be reported with its source so the admin knows the confidence level.
 
 If fetch succeeds: proceed to Step 4.
 
@@ -92,12 +98,14 @@ Then check whether a local cache already exists at `/shared/marketplace-cache/ma
 
 Read the existing `/shared/marketplace-cache/marketplace-directory.json` if it exists.
 
+**Newer-than-cache test (content-signal rule, added 2.11.0 — closes the detection half of bug `20260607-8d20ea22-131906-d1rv`):** the fetched directory is newer iff `directory_version` increased, **or** `directory_version` is equal AND `last_updated` is newer AND the content actually differs (compare a hash of the canonicalized JSON). Never key on `directory_version` alone — listing content has shipped under an unchanged `directory_version` and was invisible to version-only comparison.
+
 Compare the fetched directory to the existing cache. Track:
 - New collections added since last fetch
 - Collections with version updates available
 - Collections removed from the marketplace (rare — note but do not remove from local cache automatically)
 
-Write the fetched directory to `/shared/marketplace-cache/marketplace-directory.json`.
+If the fetched directory is newer (per the rule above), write it to `/shared/marketplace-cache/marketplace-directory.json`.
 
 Update `cache-metadata.json`:
 ```json
@@ -106,7 +114,9 @@ Update `cache-metadata.json`:
   "last_fetched": "{now ISO 8601}",
   "ttl_hours": {ttl_hours},
   "expires_at": "{now + ttl_hours ISO 8601}",
-  "directory_version": "{version from fetched directory}"
+  "directory_version": "{version from fetched directory}",
+  "fetch_source": "{pinned | jsdelivr-fallback | unpinned}",
+  "pinned_sha": "{resolved commit SHA, or null}"
 }
 ```
 
@@ -129,22 +139,4 @@ In manual mode, report what changed:
 
 ### Behavior
 
-In automatic mode this task is invisible. It does its job and gets out of the way. Never surface anything to the member in automatic mode unless the fetch fails — and even then, surface it as a non-blocking notice, not an error.
-
-In manual mode be informative but brief. The admin invoked this to get current information — give them a clear summary of what changed.
-
-### Constraints
-
-Never remove entries from the local cache based on marketplace changes. If a collection disappears from the marketplace directory, note it in manual mode output but leave the local cache entry intact. The org may have downloaded and installed that collection — removing it from the cache would break list operations.
-
-Never fail in automatic mode. A failed refresh in automatic mode degrades gracefully to using the existing cache. The calling task must always get a response it can continue with.
-
-Always update `cache-metadata.json` atomically with the directory file — write both or neither.
-
-### Edge Cases
-
-If the fetched directory has a lower `directory_version` than the current cache: this should not happen but if it does, do not downgrade the cache. Surface a warning in manual mode and keep the current cache.
-
-If `/shared/marketplace-cache/` does not exist: create it before writing. Surface a notice in manual mode that the cache directory was created.
-
-If the fetched JSON is not valid: treat as a fetch failure and use the existing cache.
+In automatic mode this task is invisibl

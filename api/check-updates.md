@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.7.0
+version: 2.8.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -85,13 +85,13 @@ If `org-config.json` is not readable: proceed with infrastructure and adapter ch
 
 The 3.1.1 + flow uses `infrastructure_directory_url` to discover both core and marketplace versions in a single fetch. Prior to 3.1.1, two separate canonical URLs were consulted; those remain as fallbacks.
 
-> **Cache-buster (required for ALL directory/version fetches in this task — Steps 2, 2.5, 2.6; closes bug `20260601-8d20ea22-2`):** the fetch layer caches `raw.githubusercontent.com` responses keyed on the exact URL and serves stale bytes for a long time, so a directory fetch right after a release silently returns pre-release versions and the task wrongly reports "up to date." Before every directory/version GET, append a unique cache-buster query param — e.g. `?t={current unix epoch seconds}` (use `&t=…` if the URL already has a query string). This forces a fresh fetch. Apply it to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
+> **Distribution fetch protocol (required for ALL directory/version fetches in this task — Steps 2, 2.5, 2.6; closes bug `20260601-8d20ea22-2`; replaces the 2.9.0 cache-buster rule in marketplace 2.11.0):** bare branch-form `raw.githubusercontent.com` URLs are served from a stale fetch-layer cache, and `?t=` cache-busters are **stripped on the raw redirect**, so they do not defeat it. For every directory/version GET, use the SHA-pinned protocol (standards.md § "Distribution fetch protocol"): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}` (cache the SHA per repo for this session — a full run needs ≤4 resolutions), then fetch `raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. If SHA resolution fails: fall back to `cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (label `source: jsdelivr-fallback`, advisory), then the bare URL (label `source: unpinned`). **A fallback-sourced result is never sufficient to report "✓ up to date"** — surface the degraded confidence instead. Apply to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
 
 **Primary path (3.1.1+):**
 
 If `infrastructure_directory_url` is set in `agent-index.json`:
 
-1. Fetch the URL **with the cache-buster appended** (see above). It returns a JSON object with shape:
+1. Fetch the URL **via the Distribution fetch protocol** (see above). It returns a JSON object with shape:
    ```json
    {
      "directory_version": "...",
@@ -472,8 +472,4 @@ If a capability's `api/{name}.md` is missing on the remote and the collection di
 
 If a capability's `api/{name}.md` exists but its frontmatter has no `version` field: render as `unable to check (no version in frontmatter)` with the file path. Do not abort the workflow.
 
-If the remote filesystem is unreachable: report what can be checked locally (capability versions vs. local member-index records) and note that infrastructure, collection, and marketplace version checks require remote filesystem connectivity.
-
-If `org-config.json` records a collection that no longer exists on the remote filesystem: flag it as `missing — directory not found` (consistent with `list-org-collections` behavior).
-
-If the member invokes this task with a specific collection name (e.g., "check updates for projects"): show only that collection's status plus the member's capabilities from that collection. Skip everything else.
+If the remote filesystem is unreachable: report what can be checked locally (capability versions vs. local member-index records) and not

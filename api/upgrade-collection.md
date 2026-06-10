@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.2.0
+version: 1.3.0
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -96,9 +96,11 @@ For multi-MAJOR jumps (1.x → 3.x), chain migration scripts: 1-to-2 then 2-to-3
 
 ### Step 5: Download and Stage
 
-Download the collection's zip from the marketplace directory's `zip_url` to a local staging directory under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`. Extract the zip in place.
+Download the collection's zip from the marketplace directory's `zip_url` to a local staging directory under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`. If the `zip_url` is branch-form (not pinned to a tag or SHA), rewrite it to its SHA-pinned form using the SHA resolved by the Distribution fetch protocol (standards.md), so the archive cannot be served stale. Extract the zip in place.
 
-Verify the extracted tree contains `collection.json` with `version` matching `target_version`. If mismatch (e.g., the GitHub `main` branch has a different version than the directory advertises), surface the discrepancy and ask "Proceed with the actual zip version `{actual}`, or halt?"
+Verify the extracted tree contains `collection.json` with `version` matching `target_version`.
+
+**If mismatch (changed in 2.11.0 — the directory is the source of truth):** since the directory was refreshed via the SHA-pinned protocol (Step 2), a persisting version mismatch means the **listing is wrong**, not the cache — the collection author shipped content without updating the directory entry (or vice versa). HALT with: "The marketplace listing advertises `{target_version}` but the repo's zip contains `{actual}`. This is a listing bug — the directory entry and the repo are out of sync. Fix the listing (developer collection preflight Checks 9/10 guard this at author time) and re-run. Not proceeding with unadvertised content." Do NOT offer to proceed with the zip version, and do NOT inspect GitHub directly as an alternate source of truth — bypassing the directory is how unadvertised, unreviewed content reaches an org.
 
 ### Step 6: Compute Diff Against Remote
 
@@ -253,12 +255,4 @@ Delete the staging directory `<project_dir>/.agent-index/staging/upgrade-{collec
 
 ### Preserve setup-responses
 
-The per-org setup-responses file at `/<collection>/setup/collection-setup-responses.md` (and any future per-org state files under `/<collection>/state/`) MUST NOT be overwritten or deleted by this task. They contain answers the org provided during the original `install-collection` setup interview — org-specific data, not collection content. Re-running setup is disruptive and shouldn't be a side effect of upgrading.
-
-### Never call aifs_share / aifs_unshare / aifs_transfer_ownership directly
-
-This task doesn't modify permissions. If a future enhancement requires permission changes (e.g., a collection upgrade needs to grant additional read access on shared collection files), the change MUST go through the `permission-change-helper` skill per `agent-index-core/standards.md`.
-
-### Don't invoke this task from inside another task
-
-`upgrade-collection` is admin-facing. If a future task needs to programmatically trigger an upgrade (e.g., a "bulk upgrade everything" admin task), it should compose with this task at the agent-orchestration layer (the agent invokes both in sequence with confirmations between), not call into `upgrade-collection`'s internals.
+The per-org setup-responses file at `/<collection>/setup/collection-setup-responses.md` (and any future per-org state files under `/<collection>/state/`) MUST NOT be overwritten or deleted by this task. They contain answers the org provided during the original `install-collection` setup interview — or

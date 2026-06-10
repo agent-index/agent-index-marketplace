@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.1.1
+version: 2.2.0
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Downloads as ZIP and uploads to remote via aifs_write.
 stateful: false
@@ -92,9 +92,9 @@ Record `install_method: zip`.
 
 ### Step 4: Download
 
-1. Download the ZIP from the collection's `zip_url` to a local temporary directory
+1. Download the ZIP from the collection's `zip_url` to a local temporary directory. **Branch-form `zip_url`s (e.g., `.../archive/refs/heads/main.zip`) are mutable and can be served stale — rewrite to the SHA-pinned form first** (added 2.11.0, Distribution fetch protocol, standards.md): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}`, then download `https://codeload.github.com/{owner}/{repo}/zip/{SHA}`. A `zip_url` already pinned to a tag or SHA is used as-is.
 2. Extract to the temporary directory
-3. Rename the extracted folder to `{collection-name}` (GitHub appends `-main` to the folder name)
+3. Rename the extracted folder to `{collection-name}` (GitHub appends `-main` or `-{SHA}` to the folder name)
 4. Upload all collection files to `/{collection-name}/` on the remote filesystem via `aifs_write`
 5. Clean up local temporary files
 
@@ -160,10 +160,4 @@ Never write to `org-config.json` before the download is verified in Step 5.
 
 Never leave a partial or corrupted collection directory on the remote filesystem. If any step after directory creation fails, clean up via `aifs_delete` before reporting the error.
 
-Never download `agent-index-core` or `agent-index-marketplace` through this task — those are managed separately.
-
-### Edge Cases
-
-If the remote filesystem root is not writable: check `aifs_auth_status()`. If `authenticated: false`, attempt automatic re-authentication via `aifs_authenticate` and retry the write. If re-auth fails or the write still fails: surface "The remote filesystem isn't writable. I tried to restore your connection but wasn't able to. Try '@ai:member-bootstrap' to troubleshoot." Halt.
-
-If th
+Never download `agent-index-core` or `agent-index-marketplace` through this 

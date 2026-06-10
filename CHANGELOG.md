@@ -1,5 +1,15 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.11.0] — 2026-06-09 — Platform Reliability: SHA-pinned distribution fetches; directory is source of truth
+
+Release record: core-improvements `releases/platform-reliability/`. Closes the marketplace half of bug `20260601-8d20ea22-2` and the detection half of `20260607-8d20ea22-131906-d1rv`.
+
+### Changed
+- **check-updates 2.8.0**: Steps 2/2.5/2.6 use the Distribution fetch protocol (SHA-pinned; standards.md) instead of `?t=` cache-busters (stripped on the raw redirect — the 2.9.0 mitigation did not survive it). Fallback-sourced results are labeled and never sufficient to report "✓ up to date."
+- **refresh-marketplace-cache 2.4.0**: Step 3 fetches via the SHA-pinned protocol; `cache-metadata.json` records `fetch_source` + `pinned_sha`. Step 4 gains the content-signal newer-than-cache rule (d1rv): newer iff `directory_version` increased, OR equal version AND newer `last_updated` AND content hash differs. No-downgrade guard unchanged.
+- **upgrade-collection 1.3.0**: the marketplace directory is the source of truth. Branch-form `zip_url`s are rewritten to the SHA-pinned codeload form before download. A directory-vs-zip version mismatch after a SHA-pinned refresh now HALTS as a listing bug — the previous "proceed with the actual zip version?" bypass is removed (bypassing the directory is how unadvertised content reaches an org).
+- **download-collection 2.2.0**: branch-form `zip_url`s rewritten to the SHA-pinned codeload form before download (D5 finding: all marketplace listing `zip_url`s are branch-form, i.e., mutable). `download-and-install-collection` inherits via delegation.
+
 ## [2.10.1] — 2026-06-08 — capture folder_id + grant code-dir reader at install (Option B; closes cr01/cr02)
 
 ### Fixed
