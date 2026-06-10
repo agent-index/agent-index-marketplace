@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.3.0
+version: 1.3.1
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -255,4 +255,14 @@ Delete the staging directory `<project_dir>/.agent-index/staging/upgrade-{collec
 
 ### Preserve setup-responses
 
-The per-org setup-responses file at `/<collection>/setup/collection-setup-responses.md` (and any future per-org state files under `/<collection>/state/`) MUST NOT be overwritten or deleted by this task. They contain answers the org provided during the original `install-collection` setup interview — or
+The per-org setup-responses file at `/<collection>/setup/collection-setup-responses.md` (and any future per-org state files under `/<collection>/state/`) MUST NOT be overwritten or deleted by this task. They contain answers the org provided during the original `install-collection` setup interview — org-specific data, not collection content. Re-running setup is disruptive and shouldn't be a side effect of upgrading.
+
+### Never call aifs_share / aifs_unshare / aifs_transfer_ownership directly
+
+This task doesn't modify permissions. If a future enhancement requires permission changes (e.g., a collection upgrade needs to grant additional read access on shared collection files), the change MUST go through the `permission-change-helper` skill per `agent-index-core/standards.md`.
+
+### Don't invoke this task from inside another task
+
+`upgrade-collection` is admin-facing. If a future task needs to programmatically trigger an upgrade (e.g., a "bulk upgrade everything" admin task), it should compose with this task at the agent-orchestration layer (the agent invokes both in sequence with confirmations between), not call into `upgrade-collection`'s internals.
+
+<!-- AIFS:FILE-END -->

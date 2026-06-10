@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.4.0
+version: 2.4.1
 collection: agent-index-marketplace
 description: Fetches the latest marketplace directory from GitHub and updates the local cache. Run automatically when the cache is stale, or manually at any time.
 stateful: false
@@ -139,4 +139,24 @@ In manual mode, report what changed:
 
 ### Behavior
 
-In automatic mode this task is invisibl
+In automatic mode this task is invisible. It does its job and gets out of the way. Never surface anything to the member in automatic mode unless the fetch fails — and even then, surface it as a non-blocking notice, not an error.
+
+In manual mode be informative but brief. The admin invoked this to get current information — give them a clear summary of what changed.
+
+### Constraints
+
+Never remove entries from the local cache based on marketplace changes. If a collection disappears from the marketplace directory, note it in manual mode output but leave the local cache entry intact. The org may have downloaded and installed that collection — removing it from the cache would break list operations.
+
+Never fail in automatic mode. A failed refresh in automatic mode degrades gracefully to using the existing cache. The calling task must always get a response it can continue with.
+
+Always update `cache-metadata.json` atomically with the directory file — write both or neither.
+
+### Edge Cases
+
+If the fetched directory has a lower `directory_version` than the current cache: this should not happen but if it does, do not downgrade the cache. Surface a warning in manual mode and keep the current cache.
+
+If `/shared/marketplace-cache/` does not exist: create it before writing. Surface a notice in manual mode that the cache directory was created.
+
+If the fetched JSON is not valid: treat as a fetch failure and use the existing cache.
+
+<!-- AIFS:FILE-END -->

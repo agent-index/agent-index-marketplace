@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.8.0
+version: 2.8.1
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -472,4 +472,10 @@ If a capability's `api/{name}.md` is missing on the remote and the collection di
 
 If a capability's `api/{name}.md` exists but its frontmatter has no `version` field: render as `unable to check (no version in frontmatter)` with the file path. Do not abort the workflow.
 
-If the remote filesystem is unreachable: report what can be checked locally (capability versions vs. local member-index records) and not
+If the remote filesystem is unreachable: report what can be checked locally (capability versions vs. local member-index records) and note that infrastructure, collection, and marketplace version checks require remote filesystem connectivity.
+
+If `org-config.json` records a collection that no longer exists on the remote filesystem: flag it as `missing — directory not found` (consistent with `list-org-collections` behavior).
+
+If the member invokes this task with a specific collection name (e.g., "check updates for projects"): show only that collection's status plus the member's capabilities from that collection. Skip everything else.
+
+<!-- AIFS:FILE-END -->

@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.2.0
+version: 2.2.1
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Downloads as ZIP and uploads to remote via aifs_write.
 stateful: false
@@ -160,4 +160,12 @@ Never write to `org-config.json` before the download is verified in Step 5.
 
 Never leave a partial or corrupted collection directory on the remote filesystem. If any step after directory creation fails, clean up via `aifs_delete` before reporting the error.
 
-Never download `agent-index-core` or `agent-index-marketplace` through this 
+Never download `agent-index-core` or `agent-index-marketplace` through this task — those are managed separately.
+
+### Edge Cases
+
+If the remote filesystem root is not writable: check `aifs_auth_status()`. If `authenticated: false`, attempt automatic re-authentication via `aifs_authenticate` and retry the write. If re-auth fails or the write still fails: surface "The remote filesystem isn't writable. I tried to restore your connection but wasn't able to. Try '@ai:member-bootstrap' to troubleshoot." Halt.
+
+If th
+
+<!-- AIFS:FILE-END -->
