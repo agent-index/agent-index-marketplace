@@ -166,6 +166,8 @@ Never download `agent-index-core` or `agent-index-marketplace` through this task
 
 If the remote filesystem root is not writable: check `aifs_auth_status()`. If `authenticated: false`, attempt automatic re-authentication via `aifs_authenticate` and retry the write. If re-auth fails or the write still fails: surface "The remote filesystem isn't writable. I tried to restore your connection but wasn't able to. Try '@ai:member-bootstrap' to troubleshoot." Halt.
 
-If th
+If the collection directory already exists on the remote (an interrupted prior download, or a collection removed from org-config but not from the filesystem): surface what is there and offer to overwrite with the fresh download or abort. Never silently merge a new download over a partial prior upload.
+
+<!-- RECONSTRUCTED 2026-06-10: final edge-case completion of a tail lost to truncation (bug 20260608-8d20ea22-003039-trunc); reviewed and approved by Bill. -->
 
 <!-- AIFS:FILE-END -->

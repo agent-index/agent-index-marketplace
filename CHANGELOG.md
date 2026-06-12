@@ -1,5 +1,9 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.11.2] — 2026-06-12 — Deploy Readiness: download-collection tail reconstruction
+
+Release record: core-improvements releases/deploy-readiness/. download-collection: final edge case (pre-existing remote collection directory → surface, overwrite-or-abort, never silent merge) RECONSTRUCTED (reviewed; inline provenance note); sentinel re-stamped over verified-complete content.
+
 ## [2.11.1] — 2026-06-10 — repair: tail truncations introduced in 2.11.0
 
 The 2.11.0 release commits contained tail-truncated capability specs — a mount-mediated read-modify-write during version restamping wrote stale truncated views back to disk (FCI-1 class; see bug 20260608-8d20ea22-003039-trunc and release record platform-reliability/build-record.md). 2.11.1 splices the complete pre-release tails back under the 2.11.0 content edits, verified byte-exact against the pre-release endings, and stamps the repaired files with AIFS:FILE-END sentinels. No behavioral changes beyond 2.11.0.
