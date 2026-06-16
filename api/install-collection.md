@@ -118,6 +118,8 @@ On confirmation:
 2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`, add `installed_date: {today}`
 3. Write `current-state.md` to task state directory recording completion
 
+**Guardrail — never mark a collection installed without writing its responses file (bug `20260615-8d20ea22-setupresp`).** Step 1 is MANDATORY and is NOT skipped by an "accept defaults / don't ask me questions" shortcut: a defaults install still writes `collection-setup-responses.md` with `setup_status: complete` (and the resolved default/org-mandated values) — an empty-but-complete file when the collection has no org-level parameters. Without it, `org-setup` hard-blocks **every member** from installing any capability from this collection. If you're installing several collections at once "with defaults," loop this task per collection (each writing its responses) — do **not** bulk-upload + register collections without their responses files. After Step 1, verify it landed: `aifs_read("/{collection-name}/setup/collection-setup-responses.md")` must succeed with `setup_status: complete` before proceeding to Step 2.
+
 Then run Step 5.5 (collaborative-ACL provisioning) before the final confirmation below.
 
 Confirm to admin:

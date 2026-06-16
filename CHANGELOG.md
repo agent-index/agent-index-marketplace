@@ -1,5 +1,12 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.12.0] — 2026-06-16 — Release B: install-collection setupresp guardrail
+
+Release record: core-improvements releases/ms365-adapter/ (Release B). Pairs with core 3.13.0.
+
+### Fixed (install-collection)
+- **setupresp guardrail (bug 20260615-8d20ea22-setupresp):** writing `collection-setup-responses.md` with `setup_status: complete` is now a mandatory step that is NOT skipped by an "accept defaults / don't ask me questions" shortcut — a defaults install writes the responses file (empty-but-complete when the collection has no org-level parameters), verified by read-back before the collection is marked installed. Closes the failure mode where a bulk/defaults install left collections with no responses file, which org-setup then treats as a hard block for **every** member trying to install any capability from that collection. Installing several collections "with defaults" must loop install-collection per collection — never bulk-upload + register without responses files.
+
 ## [2.11.2] — 2026-06-12 — Deploy Readiness: download-collection tail reconstruction
 
 Release record: core-improvements releases/deploy-readiness/. download-collection: final edge case (pre-existing remote collection directory → surface, overwrite-or-abort, never silent merge) RECONSTRUCTED (reviewed; inline provenance note); sentinel re-stamped over verified-complete content.
