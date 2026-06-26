@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.2.1
+version: 2.3.0
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Downloads as ZIP and uploads to remote via aifs_write.
 stateful: false
@@ -92,11 +92,9 @@ Record `install_method: zip`.
 
 ### Step 4: Download
 
-1. Download the ZIP from the collection's `zip_url` to a local temporary directory. **Branch-form `zip_url`s (e.g., `.../archive/refs/heads/main.zip`) are mutable and can be served stale — rewrite to the SHA-pinned form first** (added 2.11.0, Distribution fetch protocol, standards.md): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}`, then download `https://codeload.github.com/{owner}/{repo}/zip/{SHA}`. A `zip_url` already pinned to a tag or SHA is used as-is.
-2. Extract to the temporary directory
-3. Rename the extracted folder to `{collection-name}` (GitHub appends `-main` or `-{SHA}` to the folder name)
-4. Upload all collection files to `/{collection-name}/` on the remote filesystem via `aifs_write`
-5. Clean up local temporary files
+1. **Release C — source the collection from the admin's LOCAL CLONE, not a GitHub download.** Adding a collection is a tag-pinned `git clone`/`pull` via the `clone-script-generator` subroutine (the admin runs the generated script). Read the collection files from the local `{collection-name}` clone (checked out to the org's adopted tag). **Do not fetch `zip_url` from GitHub** — that path survives only as the deprecated fallback for a not-yet-migrated org (standards.md § "Distribution: backend-first"; emit the deprecation warning if used).
+2. Upload all collection files from the local clone to `/{collection-name}/` on the remote filesystem via `aifs_write`.
+3. Re-publish `/shared/dist/` (manifest + any changed directories) per the `backend-distribution` subroutine, so the org's version authority reflects the new collection.
 
 If download or upload fails: classify the failure shape first (added in core 3.7.4 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`):
 

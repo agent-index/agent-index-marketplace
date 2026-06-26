@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.8.1
+version: 2.9.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -56,7 +56,7 @@ On demand. Invoked when a member or admin wants to know if anything is out of da
 
 Read `agent-index.json` from its fixed path. Extract:
 - `version` — the installed core version
-- `infrastructure_directory_url` — single source of truth for the latest core + marketplace versions (added in agent-index-core 3.1.1; preferred when present)
+- **Release C — the member-facing source of truth for "latest" is `/shared/dist/manifest.json` on the org backend** (the admin's published version), NOT `infrastructure_directory_url`. Read the manifest and compare the member's installed versions against it (standards.md § "Distribution: backend-first"). So **"is this member current?" = installed vs the backend manifest**; **"is the org current with upstream?" = an admin-only `git` check** (`git fetch` + compare tags in the admin's clones), never a member raw fetch. This is what removes the `listinglag`/`shasolve` confusion — the org's published manifest IS the authority and can't be "behind a stale GitHub listing." `infrastructure_directory_url` (GitHub, SHA-pinned) survives only as the admin upstream-check input and the **deprecated** member fallback for a not-yet-migrated org with no `/shared/dist/`.
 - `core_version_url` — fallback URL for the canonical core `collection.json` (deprecated as of 3.1.1; still consulted when `infrastructure_directory_url` is absent or unreachable)
 - `marketplace_version_url` — fallback URL for the canonical marketplace `collection.json` (deprecated, same fallback semantics as `core_version_url`)
 - `filesystem_adapter_directory_url` — single source of truth for the latest filesystem adapter versions across all backends (used by Step 2.5)

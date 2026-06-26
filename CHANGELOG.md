@@ -1,5 +1,11 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.13.0] — 2026-06-25 — Release C: backend distribution (members never fetch from GitHub)
+
+- **check-updates 2.9.0:** the member-facing source of truth for "latest" is `/shared/dist/manifest.json` on the org backend, not `infrastructure_directory_url`. Member-current = installed vs the backend manifest; org-vs-upstream = an admin-only `git` check. Dissolves the `listinglag`/`shasolve` stale-version-check confusion (the org's published manifest is the authority and can't be "behind a stale GitHub listing").
+- **download-collection 2.3.0:** sources a collection from the admin's tag-pinned **local clone** (via the `clone-script-generator`), not a `zip_url` GitHub download; uploads to the backend and republishes `/shared/dist/`. The GitHub `zip_url` path survives only as the deprecated fallback.
+- Pairs with core 3.18.0; standards.md § "Distribution: backend-first."
+
 ## [2.12.0] — 2026-06-16 — Release B: install-collection setupresp guardrail
 
 Release record: core-improvements releases/ms365-adapter/ (Release B). Pairs with core 3.13.0.
