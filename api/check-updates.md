@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.9.0
+version: 2.10.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -76,6 +76,8 @@ Read `org-config.json` from the remote filesystem via `aifs_read`. Extract:
 
 If `agent-index.json` is not readable: surface error and halt. This file is required.
 If `org-config.json` is not readable: proceed with infrastructure and adapter checks only; skip collection checks.
+
+**Dist integrity gate (added in marketplace 2.14.0 — closes `shagateunimplemented`).** When this task reads any artifact from `/shared/dist/` (the manifest itself, or a directory file it pulls from `/shared/dist/directories/` for version comparison), it MUST **actually compute and verify the SHA-256** of each directory artifact against the `manifest.json` entry — pre-C.1.3 this task read the manifest for versions but never hashed the artifacts, so the integrity property the backend-distribution model promises did not exist (the member-apply session confirmed no SHA was ever computed). Use the **Canonical SHA-256 recipe** in `agent-index-core/templates/backend-distribution.md` (`aifs_stat` for `size` → `aifs_read` to file → `head -c <size>` → `sha256sum`); do **not** hash shell-captured `aifs_read` stdout (the `manifestsha` trailing-newline bug). On mismatch, **escalate to a top-of-report BLOCKER** — "backend distribution artifact `{path}` fails SHA verification against the manifest (computed `{actual}`, manifest says `{expected}`); the org's `/shared/dist/` is corrupt or was published with a non-canonical hash — ask your admin to re-publish via `@ai:publish-updates`." Do not report "✓ up to date" when a dist artifact fails verification. (Version comparison alone is not sufficient; a stale/torn artifact can advertise the right version with wrong bytes.)
 
 **On success:** Proceed to Step 2.
 

@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.14.0] — 2026-06-28 — Release C.1.3: dist SHA gate
+
+### Fixed
+- **check-updates 2.10.0 — `shagateunimplemented`.** check-updates read `/shared/dist/manifest.json` for version numbers but never hashed the artifacts, so the integrity property the backend-distribution model promises did not exist (confirmed in the ms_prod_9 session). It now **actually computes + verifies the SHA-256** of each dist directory artifact against the manifest, using the Canonical SHA-256 rule (`aifs_stat` size + `head -c` truncation, never `aifs_read` stdout — the `manifestsha` trailing-newline bug), and escalates a mismatch to a **top-of-report BLOCKER**. Version comparison alone is no longer treated as sufficient. Pairs with core 3.22.0 (publish republishes + apply verifies dist).
+
 ## [2.13.0] — 2026-06-25 — Release C: backend distribution (members never fetch from GitHub)
 
 - **check-updates 2.9.0:** the member-facing source of truth for "latest" is `/shared/dist/manifest.json` on the org backend, not `infrastructure_directory_url`. Member-current = installed vs the backend manifest; org-vs-upstream = an admin-only `git` check. Dissolves the `listinglag`/`shasolve` stale-version-check confusion (the org's published manifest is the authority and can't be "behind a stale GitHub listing").
