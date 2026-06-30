@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.10.0
+version: 2.11.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -86,6 +86,8 @@ If `org-config.json` is not readable: proceed with infrastructure and adapter ch
 ### Step 2: Check Infrastructure Versions
 
 The 3.1.1 + flow uses `infrastructure_directory_url` to discover both core and marketplace versions in a single fetch. Prior to 3.1.1, two separate canonical URLs were consulted; those remain as fallbacks.
+
+> **Admin-upstream rule for a self-distributing org (M1, `adminupstreamstale`, marketplace 2.15.0 / C.1.3.4 — HIGH).** This task answers two distinct questions (see CLAUDE.md "check for updates" disambiguation): the **member-apply** question ("am I current with what the org published?" = installed vs `/shared/dist/manifest.json`) and the **admin-upstream** question ("is the org current with the newest release?"). For a **self-distributing org** — one whose admin publishes releases from local **git clones** rather than consuming them from the public directory — the admin-upstream comparison MUST be a **git check in the admin's clones**: refresh via the clone scripts (`git fetch --tags`), then compare the clone working-tree `collection.json` `version` / highest tag against the org's installed versions. The public `infrastructure_directory_url` is the member-facing broadcast and is **by design behind** such an org's internal versions, so comparing against it produces a false "org is ahead / nothing to do." **NEVER use `WebSearch` to discover versions, releases, or directory contents for any path of this task** — it returns a cached, stale snapshot (the `adminupstreamstale` root cause). Directory/version GETs, when an org genuinely consumes the public directory, go through the SHA-pinned Distribution fetch protocol below; a clone-publishing org uses git in the clones instead.
 
 > **Distribution fetch protocol (required for ALL directory/version fetches in this task — Steps 2, 2.5, 2.6; closes bug `20260601-8d20ea22-2`; replaces the 2.9.0 cache-buster rule in marketplace 2.11.0):** bare branch-form `raw.githubusercontent.com` URLs are served from a stale fetch-layer cache, and `?t=` cache-busters are **stripped on the raw redirect**, so they do not defeat it. For every directory/version GET, use the SHA-pinned protocol (standards.md § "Distribution fetch protocol"): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}` (cache the SHA per repo for this session — a full run needs ≤4 resolutions), then fetch `raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. If SHA resolution fails: fall back to `cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (label `source: jsdelivr-fallback`, advisory), then the bare URL (label `source: unpinned`). **A fallback-sourced result is never sufficient to report "✓ up to date"** — surface the degraded confidence instead. Apply to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
 
@@ -451,6 +453,8 @@ MAJOR updates have breaking changes and may require running upgrade scripts. MIN
 Never modify any file. This task is strictly read-only.
 
 Never trigger an upgrade. Only report and recommend.
+
+Never use `WebSearch` (or any web-search tool) to discover versions, releases, or directory contents. For a self-distributing org the canonical "latest release" source is the admin's local git clones; for a public-directory-consuming org it is the SHA-pinned Distribution fetch protocol. `WebSearch` returns stale cached snapshots and caused `adminupstreamstale`.
 
 Never suppress infrastructure update notifications. Even in quiet mode, if core or marketplace has an update available, show it.
 

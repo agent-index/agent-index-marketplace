@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.15.0] — 2026-06-30 — Release C.1.3.4: admin-upstream source-of-truth
+
+### Fixed
+- **check-updates 2.11.0 — `adminupstreamstale` (HIGH).** For a self-distributing org the admin-upstream "is the org current with upstream?" check is now a git check in the admin's local clones (`git fetch --tags`), never a WebSearch or the member-facing public directory — which is by design behind the org's internal versions, so comparing against it falsely reports "org is ahead / nothing to do" (the ms_install_10 failure). A Constraint forbids WebSearch for version/release/directory discovery. Pairs with core 3.22.4.
+
 ## [2.14.0] — 2026-06-28 — Release C.1.3: dist SHA gate
 
 ### Fixed
