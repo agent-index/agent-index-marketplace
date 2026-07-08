@@ -1,9 +1,9 @@
 ---
 name: download-collection
 type: task
-version: 2.3.0
+version: 2.4.0
 collection: agent-index-marketplace
-description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Downloads as ZIP and uploads to remote via aifs_write.
+description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write.
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -29,7 +29,7 @@ Collection name — provided in the invocation or asked for if not provided.
 ### Outputs
 
 - `/{collection-name}/` — collection directory created on the remote filesystem root (via `aifs_write`) with all collection files
-- `org-config.json` — updated on the remote filesystem with new entry: `status: downloaded`, `install_method: zip`
+- `org-config.json` — updated on the remote filesystem with new entry: `status: downloaded`, `install_method: git-clone`
 
 ---
 
@@ -82,11 +82,18 @@ This is informational only at download time. Aliases are assigned during `instal
 
 ---
 
-### Step 3: Download Method
+### Step 3: Source Method (Release-C: backend-first, from a local git clone)
 
-In the remote filesystem model, collections are always downloaded as ZIP and uploaded to the remote filesystem. Git clone is not supported because the remote filesystem is accessed via `aifs_*` tools, not as a local mount.
+**Collections are sourced from the admin's tag-pinned LOCAL GIT CLONE, then uploaded to the remote via `aifs_*`. Never fetch collection source from `github.com`/`codeload.github.com` on the web.** (The remote filesystem is written via `aifs_*` — that is the *upload* channel; it is not the *source*. The source is always a local clone, per standards.md § "Distribution: backend-first".)
 
-Record `install_method: zip`.
+Determine the local source clone:
+
+1. If the admin already has a tag-pinned local clone of `{collection-name}` (collections selected at create-org are cloned during bring-up), use it. Confirm it's checked out to the org's adopted tag.
+2. **If there is no local clone** (e.g. the collection was not selected at create-org — this is the common `download-collection` case), do **not** fall to the web. Generate a tag-pinned clone script via the `clone-script-generator` subroutine, have the admin run it to clone `{collection-name}` at the org's adopted tag, then use that clone.
+
+Record `install_method: git-clone` and the resolved source tag.
+
+The `zip_url`/web path survives **only** as the deprecated fallback for a not-yet-migrated org; if it is ever used, emit the standards.md deprecation warning. It is never the default and never used when a clone can be produced.
 
 ---
 
@@ -129,11 +136,13 @@ Add a new entry to `installed_collections` in `org-config.json`:
   "folder_id": "{Drive ID from aifs_stat('/{name}') — omit if stat failed}",
   "downloaded_date": "{today YYYY-MM-DD}",
   "repo_url": "{repo_url}",
-  "zip_url": "{zip_url}",
-  "install_method": "zip",
+  "source_tag": "{the tag the local clone was checked out to}",
+  "install_method": "git-clone",
   "status": "downloaded"
 }
 ```
+
+(`zip_url` is retained in the marketplace directory entry only as the deprecated fallback; it is no longer written as the `install_method` here.)
 
 Update `last_updated` on `org-config.json`.
 

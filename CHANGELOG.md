@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.16.0] — 2026-07-08 — Release C.1.4.0: download-collection backend-first
+
+### Fixed
+- **`dlcollweb` (HIGH) — download-collection steered to a GitHub web fetch.** `download-collection.md` Step 3 was stale pre-Release-C ("always ZIP; git clone not supported"), contradicting Step 4's clone-from-local invariant, so adding a not-locally-cloned collection went to the web (caught live on Dev 2 adding `library`). Step 3 rewritten to the Release-C model: source from the admin's tag-pinned local clone (clone-first via `clone-script-generator` if absent), upload via `aifs_write`, republish `/shared/dist/`; `zip_url`/web survives only as the deprecated fallback. `install_method` is recorded as `git-clone`. (download-collection 2.4.0; `download-and-install-collection` inherits it.)
+
 ## [2.15.0] — 2026-06-30 — Release C.1.3.4: admin-upstream source-of-truth
 
 ### Fixed
