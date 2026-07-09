@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.16.1] — 2026-07-09 — Release C.1.4.1: wire batch ops into collection upload
+
+### Fixed
+- **`createorgnobatch` (marketplace side) — collection upload/sync uses the batch op.** download-collection (2.4.1) and upgrade-collection (1.3.2) now upload collection files via `aifs_write_batch` — one process, duplicate-parent-safe — with a per-file `aifs_write` fallback only if the deployed adapter predates the op. Removes the per-file-spawn timeout when adding or upgrading a collection. Pairs with core 3.23.1.
+
 ## [2.16.0] — 2026-07-08 — Release C.1.4.0: download-collection backend-first
 
 ### Fixed

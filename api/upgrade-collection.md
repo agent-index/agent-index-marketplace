@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.3.1
+version: 1.3.2
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -176,7 +176,7 @@ On `N`: surface "Upgrade cancelled. No changes made." Halt cleanly.
 
 ### Step 8: Upload to Remote
 
-For each `local_only` and `differs` file in the diff, upload via `aifs_write("/<collection>/<relative_path>", <content>)`. Apply LF normalization (per `apply-updates` Phase 1 step 6 convention) for text-shaped files (`.md`, `.json`, `.html`, `.yaml`, `.yml`, `.sh`, `.js`).
+Upload all `local_only` and `differs` files **in one process via `aifs_write_batch`** (`bulkuploadserial`, gdrive adapter 2.9.0+ / onedrive 2.6.0+; falls back to per-file `aifs_write` only if the deployed adapter predates the batch op). Apply LF normalization (per `apply-updates` Phase 1 step 6 convention) for text-shaped files (`.md`, `.json`, `.html`, `.yaml`, `.yml`, `.sh`, `.js`).
 
 For each `remote_only` file NOT in the preserve list: delete via `aifs_delete("/<collection>/<relative_path>")`.
 

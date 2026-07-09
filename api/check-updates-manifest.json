@@ -3,7 +3,7 @@
   "type": "task",
   "display_name": "Check Updates",
   "collection": "agent-index-marketplace",
-  "collection_version": "2.16.0",
+  "collection_version": "2.16.1",
   "version": "2.11.0",
   "eol_date": null,
   "eol_warning_days": 60,

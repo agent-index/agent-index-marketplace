@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.4.0
+version: 2.4.1
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write.
 stateful: false
@@ -100,7 +100,7 @@ The `zip_url`/web path survives **only** as the deprecated fallback for a not-ye
 ### Step 4: Download
 
 1. **Release C — source the collection from the admin's LOCAL CLONE, not a GitHub download.** Adding a collection is a tag-pinned `git clone`/`pull` via the `clone-script-generator` subroutine (the admin runs the generated script). Read the collection files from the local `{collection-name}` clone (checked out to the org's adopted tag). **Do not fetch `zip_url` from GitHub** — that path survives only as the deprecated fallback for a not-yet-migrated org (standards.md § "Distribution: backend-first"; emit the deprecation warning if used).
-2. Upload all collection files from the local clone to `/{collection-name}/` on the remote filesystem via `aifs_write`.
+2. Upload all collection files from the local clone to `/{collection-name}/` on the remote filesystem **in one process via `aifs_write_batch`** (`bulkuploadserial`, gdrive adapter 2.9.0+ / onedrive 2.6.0+; falls back to per-file `aifs_write` only if the deployed adapter predates the batch op).
 3. Re-publish `/shared/dist/` (manifest + any changed directories) per the `backend-distribution` subroutine, so the org's version authority reflects the new collection.
 
 If download or upload fails: classify the failure shape first (added in core 3.7.4 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`):
