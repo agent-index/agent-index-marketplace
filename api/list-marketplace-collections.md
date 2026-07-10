@@ -1,7 +1,7 @@
 ---
 name: list-marketplace-collections
 type: task
-version: 2.0.0
+version: 2.0.1
 collection: agent-index-marketplace
 description: Shows all collections available in the agent-index marketplace, with download and install status for each.
 stateful: false
@@ -36,7 +36,7 @@ A formatted display of available collections. No files written.
 
 ### Step 1: Ensure Fresh Cache
 
-Invoke `run agent-index-marketplace task refresh-marketplace-cache` in automatic mode.
+**Self-distributing orgs: read the catalog from the LOCAL `resource-listings` clone, not the web (`mktcatalogwebfetch`).** For a self-distributing org, read `marketplace-directory.json` from the admin's local `agent-index-resource-listings` clone — do **not** invoke `refresh-marketplace-cache` (which web-fetches the public directory) or WebSearch/raw-fetch it. Only a public-directory-consuming org invokes `run agent-index-marketplace task refresh-marketplace-cache` in automatic mode.
 
 Proceed with whatever cache state is available after the refresh attempt.
 
@@ -121,10 +121,4 @@ If the marketplace directory is empty or unreadable: surface clearly — "The ma
 
 Never display `agent-index-core` or `agent-index-marketplace` in this list — infrastructure collections are not user-installable through the marketplace.
 
-Never show collections that don't meet the minimum agent-index version requirement for this org's current version.
-
-### Edge Cases
-
-If a collection is in `org-config.json` but not in the marketplace directory (removed from marketplace or org-authored): include it in `list-org-collections` output only, not here.
-
-If the org has no collections installed yet: show the full catalog with a helpful prompt at the top: "Your org hasn't installed any collections yet. Here's what's available:"
+Never show collections that don't meet the minimum agent-index version requirement fo

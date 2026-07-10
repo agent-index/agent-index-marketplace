@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.4.1
+version: 2.4.2
 collection: agent-index-marketplace
 description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write.
 stateful: false
@@ -40,9 +40,9 @@ Collection name — provided in the invocation or asked for if not provided.
 If the member named a collection in their invocation: use that name.
 If not: ask "Which collection would you like to download? Say '@ai:list-marketplace-collections' to see what's available."
 
-Ensure the marketplace cache is fresh: invoke `run agent-index-marketplace task refresh-marketplace-cache` in automatic mode.
+**Locate the catalog (self-distributing orgs: read the LOCAL clone, never the web — `mktcatalogwebfetch`).** This org is self-distributing: the authoritative marketplace catalog is the admin's local `agent-index-resource-listings` clone (`marketplace-directory.json`), kept current by the clone scripts (git) — NOT the public directory. **Read `marketplace-directory.json` from the local `resource-listings` clone; do NOT invoke `refresh-marketplace-cache` (which web-fetches the public directory) and do NOT WebSearch / raw-fetch the directory.** This is the same rule `publish-updates` M1 already enforces for version/directory discovery (`adminupstreamstale`). Only an org that genuinely *consumes* from the public marketplace directory uses `refresh-marketplace-cache`'s SHA-pinned web fetch. (Bug `mktcatalogwebfetch`: the add-collection flow web-fetched the catalog first and hard-failed when the web was correctly blocked; the admin had to steer it back to the local clone.)
 
-Look up the collection name in `/shared/marketplace-cache/marketplace-directory.json`.
+Look up the collection name in the local `resource-listings` clone's `marketplace-directory.json` (or, for a public-directory-consuming org, the refreshed `/shared/marketplace-cache/marketplace-directory.json`).
 
 If not found: surface "'{name}' wasn't found in the marketplace. Check the name and try again, or say '@ai:list-marketplace-collections' to browse." Halt.
 

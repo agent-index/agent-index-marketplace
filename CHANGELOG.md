@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.17.0] — 2026-07-10 — Release C.1.4.2: catalog from local clone (mktcatalogwebfetch)
+
+### Fixed
+- **`mktcatalogwebfetch` — add-collection catalog lookup no longer web-fetches on a self-distributing org.** `download-collection` (2.4.2) Step 1 and `list-marketplace-collections` (2.0.1) now read `marketplace-directory.json` from the admin's local `resource-listings` clone for a self-distributing org — never `refresh-marketplace-cache` / WebSearch / raw-fetch. Same `adminupstreamstale` rule publish-updates already enforces; the `dlcollweb` catalog-lookup sibling. (The admin previously had to stop the flow going to the web.)
+
 ## [2.16.1] — 2026-07-09 — Release C.1.4.1: wire batch ops into collection upload
 
 ### Fixed
