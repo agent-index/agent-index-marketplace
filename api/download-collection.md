@@ -1,9 +1,9 @@
 ---
 name: download-collection
 type: task
-version: 2.4.2
+version: 2.5.0
 collection: agent-index-marketplace
-description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write.
+description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -18,7 +18,7 @@ writes_to: null
 
 ## About This Task
 
-Downloads a collection from the marketplace to the org's remote filesystem via `aifs_write`. This is the first step before installation — the collection files need to be present on the remote filesystem before the setup interview can run.
+Downloads a collection from the marketplace to the org's remote filesystem via `aifs_write_batch` (one-process bulk upload). This is the first step before installation — the collection files need to be present on the remote filesystem before the setup interview can run.
 
 Downloading does not configure the collection for the org. That is `install-collection`'s job. After downloading, the collection exists on the remote filesystem but is not yet usable by members.
 
@@ -100,7 +100,11 @@ The `zip_url`/web path survives **only** as the deprecated fallback for a not-ye
 ### Step 4: Download
 
 1. **Release C — source the collection from the admin's LOCAL CLONE, not a GitHub download.** Adding a collection is a tag-pinned `git clone`/`pull` via the `clone-script-generator` subroutine (the admin runs the generated script). Read the collection files from the local `{collection-name}` clone (checked out to the org's adopted tag). **Do not fetch `zip_url` from GitHub** — that path survives only as the deprecated fallback for a not-yet-migrated org (standards.md § "Distribution: backend-first"; emit the deprecation warning if used).
-2. Upload all collection files from the local clone to `/{collection-name}/` on the remote filesystem **in one process via `aifs_write_batch`** (`bulkuploadserial`, gdrive adapter 2.9.0+ / onedrive 2.6.0+; falls back to per-file `aifs_write` only if the deployed adapter predates the batch op).
+2. Upload all collection files from the local clone to `/{collection-name}/` on the remote filesystem **in one process via `aifs_write_batch`** (`bulkuploadserial` / `instcollnobatch`, gdrive adapter 2.9.0+ / onedrive 2.6.0+). A per-file `aifs_write` loop spawns a fresh Node process per file and, because each invocation has only a ~45-second window, a non-trivial collection (e.g. 25 files) times out mid-upload and forces manual chunking (observed: "uploaded 16 of 25, 9 remain") — that per-file-spawn timeout is exactly what the batch op removes. Build ONE `entries` array of `{path, content_file}` covering all in-scope files (prefer the `content_file` form over inline `content` for every file — inline is capped by the shell argument length, ~128KB) and pass it to `aifs_write_batch`; it ensures the unique parent folders once (duplicate-parent-safe) and runs each file's durable read-back verify inside the single process. Chunk the `entries` array into groups of ~40–60 if it is very large. **Do not hand-roll a per-file resuming uploader when the batch op is available.**
+
+   **Check the adapter advertises the batch op before choosing this path.** Read the adapter's `supported_operations` (from `adapter.json` / the aifs capabilities the adapter reports) and confirm `writeBatch` is listed. If `writeBatch` IS advertised, use `aifs_write_batch` as above. If it is NOT advertised (an older deployed adapter that predates the batch op), fall back to per-file `aifs_write` — but issue the writes in **small sub-batches sized to stay under the ~45-second per-invocation window** (a handful of files per unit of work, verifying each landed before starting the next group), NOT one giant sequential loop over all files. Chunking the fallback this way keeps a large collection from timing out mid-upload the way the un-chunked loop did (`instcollnobatch`).
+
+   **Deployment note:** if the adapter reports no batch op (`writeBatch` absent from `supported_operations`) despite being on a version that *should* advertise it (>= gdrive 2.10.0, or the onedrive equivalent), that is a deployment/packaging issue — a stale or mis-built adapter bundle — and should be checked separately (e.g. via `@ai:verify-workspace-policy` or by re-staging the adapter). Do not treat it as normal: the chunked fallback keeps the upload working, but an adapter on that version should be advertising the op.
 3. Re-publish `/shared/dist/` (manifest + any changed directories) per the `backend-distribution` subroutine, so the org's version authority reflects the new collection.
 
 If download or upload fails: classify the failure shape first (added in core 3.7.4 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`):

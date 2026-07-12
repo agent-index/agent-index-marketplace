@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.18.0] — 2026-07-12 — Release C.1.4.3: batch collection upload (instcollnobatch)
+
+### Fixed
+- **`download-collection` (2.5.0) — batch remote upload.** The collection file tree now uploads via `aifs_write_batch` in a single process (duplicate-parent-safe), gated on the adapter advertising `writeBatch`; falls back to small per-window sub-batches (never one giant sequential loop) when the batch op is unavailable. Closes the ~45s-window timeout that forced manual chunking on non-trivial collections (observed installing `developer`: "uploaded 16 of 25"). Flags the deployment check when an adapter that should advertise `writeBatch` (≥ gdrive 2.10.0) does not.
+
 ## [2.17.0] — 2026-07-10 — Release C.1.4.2: catalog from local clone (mktcatalogwebfetch)
 
 ### Fixed
