@@ -1,5 +1,10 @@
 # Agent-Index Marketplace — Changelog
 
+## [2.18.1] — 2026-07-13 — Release C.1.4.4: bound the batch upload chunk size (instcollnobatch refinement)
+
+### Fixed
+- **`download-collection` (2.6.0) — fixed conservative batch sub-batches.** C.1.4.3 uploaded the tree via `aifs_write_batch` but as the whole tree / two big chunks, which still overran the ~45s per-invocation window on a large collection (66-file client-intelligence: only ~20 landed, needed manual re-chunking). The upload now partitions into fixed sub-batches of **10 files** per `aifs_write_batch` call (one process each), verifies each sub-batch landed, and is resume-safe/idempotent (a re-run skips files already present). The capability check + chunked per-file fallback use the same 10-file sub-batches. Supersedes the C.1.4.3 single-big-batch behavior.
+
 ## [2.18.0] — 2026-07-12 — Release C.1.4.3: batch collection upload (instcollnobatch)
 
 ### Fixed
