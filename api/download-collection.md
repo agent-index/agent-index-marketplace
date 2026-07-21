@@ -89,7 +89,7 @@ This is informational only at download time. Aliases are assigned during `instal
 Determine the local source clone:
 
 1. If the admin already has a tag-pinned local clone of `{collection-name}` (collections selected at create-org are cloned during bring-up), use it. Confirm it's checked out to the org's adopted tag.
-2. **If there is no local clone** (e.g. the collection was not selected at create-org — this is the common `download-collection` case), do **not** fall to the web. Emit a clone **manifest** via the `clone-script-generator` subroutine and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script (which reads it) to clone `{collection-name}` at the org's adopted version, then use that clone.
+2. **If there is no local clone** (e.g. the collection was not selected at create-org — this is the common `download-collection` case), do **not** fall to the web. Emit a clone **manifest** via the `clone-script-generator` subroutine and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script (which reads it) to clone `{collection-name}` at the org's adopted version, then use that clone. **DO NOT author a bespoke `clone-{collection-name}.ps1`/`.sh` (or copy an existing clone-*.ps1) -- that is the `clonescripttagassumption` regression; the ONLY sanctioned path is the data manifest + the COMMITTED `lib/clone/clone-repos`. If a bespoke clone script would be written, STOP and emit the manifest instead.**
 
 Record `install_method: git-clone` and the resolved source tag.
 

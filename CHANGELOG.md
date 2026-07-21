@@ -1,5 +1,10 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.19.1] — 2026-07-21 — Release C.1.5.1: clone-script hard prohibition
+
+### Fixed
+- **`download-collection` — hard-prohibit authoring a bespoke clone script (`clonescripttagassumption`).** Adding a collection MUST emit a clone manifest + invoke the committed `agent-index-core/lib/clone/clone-repos`; never hand-write a `clone-<name>.ps1` or copy an existing one. Closes the on-org regression where the agent bypassed the committed script.
+
 ## [2.19.0] â€” 2026-07-18 â€” Release C.1.5.0: collreadgrantmissing hard grant + permission-spec CLI
 
 ### Fixed
@@ -358,4 +363,5 @@ After this release lands, marketplace collections have a coherent admin upgrade 
 - `marketplace-directory.json` â€” bundled directory with initial projects collection entry
 - `collection-setup.md` â€” org admin setup for cache TTL configuration
 - Setup templates and manifests for all six tasks
+
 
