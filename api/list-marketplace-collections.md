@@ -121,4 +121,10 @@ If the marketplace directory is empty or unreadable: surface clearly — "The ma
 
 Never display `agent-index-core` or `agent-index-marketplace` in this list — infrastructure collections are not user-installable through the marketplace.
 
-Never show collections that don't meet the minimum agent-index version requirement fo
+Never show collections that don't meet the minimum agent-index version requirement for this org's current version.
+
+### Edge Cases
+
+If a collection is in `org-config.json` but not in the marketplace directory (removed from marketplace or org-authored): include it in `list-org-collections` output only, not here.
+
+If the org has no collections installed yet: show the full catalog with a helpful prompt at the top: "Your org hasn't installed any collections yet. Here's what's available:"

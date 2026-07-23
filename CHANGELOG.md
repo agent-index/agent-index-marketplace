@@ -1,5 +1,10 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.19.2] — 2026-07-23 — Release C.1.5.2: torn-write tail restoration (tornwritefiledamage)
+
+### Fixed
+- **`list-marketplace-collections.md` — restored truncated tail (`tornwritefiledamage`).** Lost its "minimum version requirement…" line + Edge Cases to a torn-write at 8647f97; spliced back from git donor aff0407. Content-only.
+
 ## [2.19.1] — 2026-07-21 — Release C.1.5.1: clone-script hard prohibition
 
 ### Fixed
@@ -363,5 +368,6 @@ After this release lands, marketplace collections have a coherent admin upgrade 
 - `marketplace-directory.json` â€” bundled directory with initial projects collection entry
 - `collection-setup.md` â€” org admin setup for cache TTL configuration
 - Setup templates and manifests for all six tasks
+
 
 
