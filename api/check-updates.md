@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.11.0
+version: 2.12.0
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -9,8 +9,7 @@ produces_artifacts: false
 produces_shared_artifacts: false
 dependencies:
   skills: []
-  tasks:
-    - refresh-marketplace-cache
+  tasks: []
 external_dependencies: []
 reads_from: null
 writes_to: null
@@ -61,7 +60,7 @@ Read `agent-index.json` from its fixed path. Extract:
 - `marketplace_version_url` — fallback URL for the canonical marketplace `collection.json` (deprecated, same fallback semantics as `core_version_url`)
 - `filesystem_adapter_directory_url` — single source of truth for the latest filesystem adapter versions across all backends (used by Step 2.5)
 - `remote_filesystem.backend` — the org's installed adapter `backend_id` (e.g., `"gdrive"`, `"onedrive"`, `"s3"`); used by Step 2.5 to find the matching directory entry
-- `marketplace_cache_path` — where the marketplace directory cache lives
+- (`marketplace_cache_path` is **not used** as of 2.12.0 — `/shared/marketplace-cache/` is decommissioned; collection versions come from the org's subscribed catalogs in Step 3.)
 
 Also read local `mcp-servers/filesystem/adapter.json` (the bundled adapter manifest packaged with the install). Extract:
 - `version` — the installed adapter version
@@ -234,20 +233,29 @@ If the directory fetch fails (network, 404), record `unable to check (network or
 
 ---
 
-### Step 3: Refresh Marketplace Cache and Check Collection Versions
+### Step 3: Check Collection Versions Against Each Collection's Origin Catalog
 
-Invoke `run agent-index-marketplace task refresh-marketplace-cache` in automatic mode to ensure the marketplace directory is fresh.
+**Changed in 2.12.0 (multi-marketplace; removes the last reader of the decommissioned cache).** This step no longer invokes `refresh-marketplace-cache` and **never reads `/shared/marketplace-cache/`** — that cache has had no writer on a clone-publishing org since marketplace 2.17.0 (`mktcatalogwebfetch`), so reading it compared installed versions against a frozen June catalog and mislabelled collections added since (e.g. `library`) as "org collection — no marketplace tracking."
 
-Read the marketplace directory from cache. For each collection in `org-config.json`'s `installed_collections` (excluding `agent-index-core` and `agent-index-marketplace`, which were checked in Step 2):
+**If the running member is an admin:** follow `/internal/resolve-marketplaces.md`, then for each `installed_collections[]` entry (excluding `agent-index-core` and `agent-index-marketplace`, checked in Step 2) route by its **provenance**, `marketplace_id`:
 
-1. Find the matching entry in the marketplace directory by collection name
-2. Compare the `current_version` in the directory against the `version` in `org-config.json`
+| `marketplace_id` | Result |
+|---|---|
+| key absent (org not yet back-filled by `publish-updates` 6g) | treat as `agent-index-public`, and add the report note "provenance not yet recorded — run '@ai:publish-updates' to record it" |
+| `null` | `sideloaded — no catalog tracking` |
+| a **disabled** subscription | `origin catalog disabled ({display_name})` — re-enable in `@ai:edit-org` → Manage marketplaces |
+| an id with **no** subscription | `origin catalog unsubscribed ({id})` |
+| a subscription the resolver **skipped** | `unable to check ({display_name} unavailable: {error})` |
+| an **ok** subscription | find the entry by `name` **in that catalog only** — never in another catalog |
 
-Record the result for each:
-- If directory version > installed version: `update available` (installed → latest)
-- If directory version = installed version: `up to date`
-- If collection not found in directory (org-authored collection): `org collection — no marketplace tracking`
-- If marketplace cache unavailable: `unable to check`
+For an ok origin catalog:
+- entry `current_version` > installed `version`: `update available` (installed → latest), and name the catalog when more than one is subscribed
+- equal: `up to date`
+- entry absent: `no longer listed in {display_name}`
+
+If the resolver returned `error` (a catalog failed and is not set to skip): record every collection whose origin is an affected catalog as `unable to check (catalog error: {code})`, list the errors in the report, and continue with Step 4. **Never report "✓ up to date" for a collection whose origin catalog could not be read.**
+
+**If the running member is not an admin:** catalogs are admin-only. For each collection, read its org version from `/shared/dist/manifest.json` → `collections[]` (already SHA-verified in Step 2) and record `org version {v} — upstream check is admin-only`. The member's own currency is Step 4.
 
 Additionally, for each installed collection on the remote filesystem, read its `collection.json` via `aifs_read` and compare against `org-config.json`'s recorded version. If these differ, it means the remote filesystem was updated but `org-config.json` wasn't updated to match — flag as `version mismatch — remote filesystem differs from org-config`.
 
@@ -357,6 +365,7 @@ Compile all results into a prioritized report.
 > | projects | 2.0.0 | 3.0.0 | ↑ update available |
 > | strategy | 1.0.0 | 1.0.0 | ✓ up to date |
 > | capture | 1.0.0 | 1.0.0 | ✓ up to date |
+> {when more than one catalog is subscribed, add a Catalog column showing each collection's origin display name; sideloaded collections show "—"}
 >
 > **Your Installed Capabilities** ({N} total)
 > | Capability | Type | Collection | Your Version | Latest Version | Status |

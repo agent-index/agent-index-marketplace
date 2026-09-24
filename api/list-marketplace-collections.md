@@ -1,16 +1,15 @@
 ---
 name: list-marketplace-collections
 type: task
-version: 2.0.1
+version: 2.1.0
 collection: agent-index-marketplace
-description: Shows all collections available in the agent-index marketplace, with download and install status for each.
+description: Shows all collections available across the org's subscribed marketplace catalogs, grouped by catalog, with download and install status for each.
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
 dependencies:
   skills: []
-  tasks:
-    - refresh-marketplace-cache
+  tasks: []
 external_dependencies: []
 reads_from: null
 writes_to: null
@@ -18,9 +17,9 @@ writes_to: null
 
 ## About This Task
 
-The marketplace catalog view. Shows every collection available in the marketplace, grouped by category, with a clear status indicator for each — whether it's new to the org, already downloaded, or fully installed.
+The marketplace catalog view. Shows every collection available across the catalogs this org subscribes to, grouped by catalog and then by category, with a clear status indicator for each — whether it's new to the org, already downloaded, or fully installed.
 
-This is typically the starting point when an org admin wants to add new capabilities to their org.
+This is typically the starting point when an org admin wants to add new capabilities to their org. Catalogs are admin-only (core 3.30.0): they live in the admin's local clones.
 
 ### Inputs
 
@@ -34,36 +33,40 @@ A formatted display of available collections. No files written.
 
 ## Workflow
 
-### Step 1: Ensure Fresh Cache
+### Step 1: Resolve Subscribed Catalogs
 
-**Self-distributing orgs: read the catalog from the LOCAL `resource-listings` clone, not the web (`mktcatalogwebfetch`).** For a self-distributing org, read `marketplace-directory.json` from the admin's local `agent-index-resource-listings` clone — do **not** invoke `refresh-marketplace-cache` (which web-fetches the public directory) or WebSearch/raw-fetch it. Only a public-directory-consuming org invokes `run agent-index-marketplace task refresh-marketplace-cache` in automatic mode.
+Follow `/internal/resolve-marketplaces.md` (added in 2.20.0). It reads every **enabled** subscription in `org-config.json` → `marketplaces[]` (or the synthesised legacy public subscription on a pre-3.30.0 org), verifies catalog identity and namespaces, and returns merged, source-tagged entries.
 
-Proceed with whatever cache state is available after the refresh attempt.
+- `status: "not_admin"` → surface the resolver's admin-only message and halt.
+- `status: "error"` → surface every named error and its remedy, and **halt without listing anything**. Do not fall back to another source, to `/shared/marketplace-cache/`, or to the web.
+- `status: "ok"` → proceed. Keep `sources[]` (for the header and any `skipped` notices) and `disabled[]`.
+
+This task no longer invokes `refresh-marketplace-cache` and never reads `/shared/marketplace-cache/` (decommissioned; `mktcatalogwebfetch`). For the public catalog on a clone-publishing org, freshness comes from the admin's clone refresh (the committed `lib/clone/clone-repos` script), not from a cache TTL.
 
 ---
 
 ### Step 2: Read Installed Collections State
 
-Read `org-config.json` from the remote filesystem via `aifs_read`. Extract the `installed_collections` array.
+From the `org-config.json` already read by the resolver, extract `installed_collections[]`.
 
-Build a lookup map: collection name → `{version, status, install_method}`.
+Build a lookup map: collection name → `{version, status, marketplace_id}`.
 
-This tells us which collections are `downloaded` (present on the remote filesystem, not yet set up) vs `installed` (downloaded and setup complete) vs not present at all.
+This tells us which collections are `downloaded` (present on the remote filesystem, not yet set up) vs `installed` (downloaded and setup complete) vs not present at all, and which catalog each came from.
 
 ---
 
-### Step 3: Read and Enrich Marketplace Directory
+### Step 3: Enrich Catalog Entries
 
-Read `/shared/marketplace-cache/marketplace-directory.json`.
-
-For each entry in the directory, determine its status relative to this org:
+For each resolver entry, determine its status relative to this org:
 
 | Condition | Status Label |
 |---|---|
 | Not in `org-config.json` | `available` |
 | In `org-config.json` with `status: downloaded` | `downloaded — not installed` |
-| In `org-config.json` with `status: installed`, version matches current | `installed` |
-| In `org-config.json` with `status: installed`, version behind current | `installed — update available` |
+| In `org-config.json` with `status: installed`, version matches this entry's `current_version` | `installed` |
+| In `org-config.json` with `status: installed`, version behind this entry's `current_version` | `installed — update available` |
+
+Compare versions **only against the entry from the collection's own origin catalog** (`installed_collections[].marketplace_id`). With namespaces enforced a name appears in at most one catalog, so this is normally the same entry; if the installed entry's `marketplace_id` differs from the catalog the entry was found in, show `installed from {origin display name}` and do not claim an update.
 
 ---
 
@@ -77,30 +80,35 @@ If no filter provided: show all collections.
 
 ### Step 5: Display
 
-Present the catalog grouped by category. Within each category, sort featured collections first, then alphabetically.
+Present one section **per catalog**, in `sources[]` order with `agent-index-public` last — so a small private catalog is never buried beneath a large public one. Within a catalog, group by category; within a category, featured first, then alphabetical. Omit a catalog section that has no entries after filtering.
+
+If only one catalog is subscribed, omit the per-catalog heading — the output must match pre-2.20.0 exactly except for the header line (backwards compatibility).
 
 Format:
 
 > **Marketplace Collections**
-> Cache last updated: {last_fetched} {if stale: — "say '@ai:refresh-marketplace-cache' to update"}
+> Catalogs: {display_name} v{directory_version} ({last_updated}) · …
+> {for each skipped source: "⚠ {display_name} couldn't be read ({error}) — skipped because it is set to skip when unavailable."}
+>
+> **CX Studio Catalog** · namespace `cx`
+>
+> **Client Delivery**
+> ↓ CX Studio v3.0.4 — available
+>   Client-facing experience design studio.
+>
+> **Agent Index Marketplace**
 >
 > **Project Management**
-> ✓ Projects v1.0.0 — installed
+> ✓ Projects v4.3.0 — installed
 >   Create, manage, and archive projects across your org.
->
-> **HRIS**
-> ↓ BambooHR Replacement v2.1.0 — available
->   Full HR management including employee records, time-off, and onboarding.
->
-> **ATS**
-> ⬇ Greenhouse Replacement v1.3.0 — downloaded, not installed
->   Applicant tracking and recruiting workflow management.
 
 Status icons:
 - `✓` — installed (current version)
 - `↑` — installed, update available
 - `⬇` — downloaded, not installed
 - `↓` — available, not downloaded
+
+If `disabled[]` is non-empty, add one line after the list: "Not shown: {display names} (disabled — '@ai:edit-org' → Manage marketplaces to re-enable)."
 
 After the list, offer actions:
 > "Say '@ai:download-and-install-collection' followed by a collection name to add it, or ask me about any collection for more details."
@@ -113,9 +121,9 @@ After the list, offer actions:
 
 If the member asks for details about a specific collection before downloading: provide the full description, list of included API skills and tasks (from the directory entry if available), license, author, and external dependencies. Give the admin what they need to make an informed decision.
 
-If the cache is stale but a refresh failed: display the list with a clear notice at the top that the information may be out of date and when it was last refreshed. Never refuse to display because the cache is stale.
+Show each catalog's `directory_version` and `last_updated` in the header so the admin can judge freshness. If the public catalog looks behind what they expect, the remedy is refreshing the clones with the committed `lib/clone/clone-repos` script — not a web fetch.
 
-If the marketplace directory is empty or unreadable: surface clearly — "The marketplace directory isn't available right now. Try '@ai:refresh-marketplace-cache' to fetch it."
+If a catalog is unreadable and not set to skip: the resolver aborts; surface its named errors and remedies and list nothing. A partial catalog must never be presented as complete.
 
 ### Constraints
 
@@ -125,6 +133,8 @@ Never show collections that don't meet the minimum agent-index version requireme
 
 ### Edge Cases
 
-If a collection is in `org-config.json` but not in the marketplace directory (removed from marketplace or org-authored): include it in `list-org-collections` output only, not here.
+If a collection is in `org-config.json` but not in any subscribed catalog (sideloaded, `marketplace_id: null`, or its catalog is disabled/unsubscribed): include it in `list-org-collections` output only, not here.
 
 If the org has no collections installed yet: show the full catalog with a helpful prompt at the top: "Your org hasn't installed any collections yet. Here's what's available:"
+
+<!-- AIFS:FILE-END -->

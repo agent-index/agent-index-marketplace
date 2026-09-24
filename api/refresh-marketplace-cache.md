@@ -1,9 +1,9 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.4.1
+version: 2.5.0
 collection: agent-index-marketplace
-description: Fetches the latest marketplace directory from GitHub and updates the local cache. Run automatically when the cache is stale, or manually at any time.
+description: DEPRECATED (2.20.0) — legacy web-fetched marketplace cache for a not-yet-migrated org only. Clone-publishing orgs read catalogs from local clones; this task halts for them.
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -16,6 +16,12 @@ writes_to: null
 ---
 
 ## About This Task
+
+> **Deprecated in agent-index-marketplace 2.20.0 (multi-marketplace). No task invokes this any more.** Catalogs are now read from each subscription in `org-config.json` → `marketplaces[]` via `/internal/resolve-marketplaces.md`, from the admin's local clones. `/shared/marketplace-cache/` is decommissioned (`standards.md` § "Marketplaces"); nothing reads it.
+>
+> **Guard — run before anything below.** If `org-config.json` has any subscription with `source.kind: "clone"`, OR `<install_root>/agent-index-resource-listings/marketplace-directory.json` exists: do **not** fetch and do **not** write the cache. Surface: "This org reads its marketplace catalogs from local clones, so there's no cache to refresh. To pick up newer catalog versions, refresh your clones with the committed clone-repos script (say '@ai:check-updates' for the admin upstream check)." Halt.
+>
+> Only a not-yet-migrated org whose single subscription is the legacy `url` source continues past this guard. Removal of this task is planned for a MAJOR release; the retained behaviour below is unchanged.
 
 The marketplace directory — the list of all available collections — is hosted on GitHub as the canonical source of truth. The local cache in `/shared/marketplace-cache/` is a copy of that directory, kept fresh by this task.
 

@@ -1,7 +1,7 @@
 ---
 name: list-org-collections
 type: task
-version: 2.0.0
+version: 2.1.0
 collection: agent-index-marketplace
 description: Shows all collections the org has downloaded or created, with install status for each. Does not show marketplace collections that haven't been downloaded.
 stateful: false
@@ -57,11 +57,13 @@ Skip `agent-index-core` and `agent-index-marketplace` — these are infrastructu
 
 ### Step 3: Categorize Collections
 
-Split collections into two groups:
+Group collections by **provenance** (changed in 2.20.0 — multi-marketplace), using `installed_collections[].marketplace_id` and the display names in `org-config.json` → `marketplaces[]`. **No catalog is read** — this view needs only org-config, so it works for members as well as admins.
 
-**Marketplace collections** — those with a `marketplace_url` in their `collection.json` or a matching entry in `org-config.json` with a `repo_url`. These were downloaded from the marketplace.
+- **One group per origin catalog** — entries whose `marketplace_id` names a subscription, headed by that subscription's `display_name`. Append "(disabled)" to the heading if the subscription has `enabled: false`, and "(no longer subscribed)" if the id has no subscription at all — provenance survives both.
+- **Sideloaded / org collections** — `marketplace_id: null`, and anything on the remote filesystem that is not in `org-config.json`.
+- **Pre-back-fill entries** (no `marketplace_id` key): fall back to the pre-2.20.0 heuristic — a `repo_url` or `marketplace_url` places it under the public catalog; otherwise Sideloaded / org collections. Add one line under the list: "Provenance isn't recorded yet for some collections — running '@ai:publish-updates' records it."
 
-**Org collections** — those without a marketplace URL. These were authored by the org.
+If only one catalog is subscribed and there are no disabled/unsubscribed origins, keep the pre-2.20.0 headings ("Marketplace Collections" / "Org Collections") so the output is unchanged for a single-catalog org.
 
 Within each group, determine status per collection:
 
@@ -79,14 +81,14 @@ Within each group, determine status per collection:
 
 > **Your Org's Collections**
 >
-> **Marketplace Collections**
+> **Marketplace Collections**   ← per origin catalog when more than one is subscribed, e.g. "**CX Studio Catalog**", "**Agent Index Marketplace**"
 > ✓ projects v1.0.0 — installed (zip)
 >   4 tasks: create-project, edit-project, archive-project, unarchive-project
 >
 > ⬇ greenhouse-replacement v1.3.0 — downloaded, setup not complete
 >   Say '@ai:install-collection greenhouse-replacement' to complete setup.
 >
-> **Org Collections**
+> **Org Collections**   ← "Sideloaded / org collections" when more than one catalog is subscribed
 > ✓ acme-corp-hr-ops v2.0.0 — installed
 >   3 tasks, 2 skills
 >

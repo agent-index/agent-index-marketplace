@@ -1,16 +1,15 @@
 ---
 name: download-collection
 type: task
-version: 2.6.0
+version: 2.7.0
 collection: agent-index-marketplace
-description: Downloads a marketplace collection to the org's remote filesystem. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
+description: Downloads a collection from one of the org's subscribed marketplace catalogs to the org's remote filesystem, recording which catalog it came from. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
 dependencies:
   skills: []
-  tasks:
-    - refresh-marketplace-cache
+  tasks: []
 external_dependencies: []
 reads_from: null
 writes_to: null
@@ -29,7 +28,7 @@ Collection name — provided in the invocation or asked for if not provided.
 ### Outputs
 
 - `/{collection-name}/` — collection directory created on the remote filesystem root (via `aifs_write`) with all collection files
-- `org-config.json` — updated on the remote filesystem with new entry: `status: downloaded`, `install_method: git-clone`
+- `org-config.json` — updated on the remote filesystem with new entry: `status: downloaded`, `install_method: git-clone`, `marketplace_id` (provenance, 2.7.0)
 
 ---
 
@@ -40,11 +39,14 @@ Collection name — provided in the invocation or asked for if not provided.
 If the member named a collection in their invocation: use that name.
 If not: ask "Which collection would you like to download? Say '@ai:list-marketplace-collections' to see what's available."
 
-**Locate the catalog (self-distributing orgs: read the LOCAL clone, never the web — `mktcatalogwebfetch`).** This org is self-distributing: the authoritative marketplace catalog is the admin's local `agent-index-resource-listings` clone (`marketplace-directory.json`), kept current by the clone scripts (git) — NOT the public directory. **Read `marketplace-directory.json` from the local `resource-listings` clone; do NOT invoke `refresh-marketplace-cache` (which web-fetches the public directory) and do NOT WebSearch / raw-fetch the directory.** This is the same rule `publish-updates` M1 already enforces for version/directory discovery (`adminupstreamstale`). Only an org that genuinely *consumes* from the public marketplace directory uses `refresh-marketplace-cache`'s SHA-pinned web fetch. (Bug `mktcatalogwebfetch`: the add-collection flow web-fetched the catalog first and hard-failed when the web was correctly blocked; the admin had to steer it back to the local clone.)
+**Locate the collection in the subscribed catalogs (2.7.0 — multi-marketplace).** Follow `/internal/resolve-marketplaces.md`. It reads every enabled subscription from the admin's local clones (never the web, never `/shared/marketplace-cache/`, never `refresh-marketplace-cache` — `mktcatalogwebfetch` / `adminupstreamstale` still hold), verifies identity and namespaces, and returns source-tagged entries.
 
-Look up the collection name in the local `resource-listings` clone's `marketplace-directory.json` (or, for a public-directory-consuming org, the refreshed `/shared/marketplace-cache/marketplace-directory.json`).
-
-If not found: surface "'{name}' wasn't found in the marketplace. Check the name and try again, or say '@ai:list-marketplace-collections' to browse." Halt.
+- `not_admin` → surface the resolver's message; halt. Downloading is an admin action.
+- `error` → surface the named errors and remedies; halt. Do not download from a partially verified catalog set.
+- `ok` → look up `{name}` with the resolver's **Lookup by name**:
+  - Exactly one match → keep the entry **and its `marketplace_id`** for Step 6.
+  - More than one → refuse and ask which catalog (by display name). There is no precedence rule.
+  - None → surface "'{name}' isn't in any catalog this org subscribes to ({display names}). Check the name, say '@ai:list-marketplace-collections' to browse, or add a catalog via '@ai:edit-org' → Manage marketplaces." Halt.
 
 Check `org-config.json` — if this collection is already present with `status: installed`:
 Surface: "'{display_name}' is already installed. To upgrade it, say '@ai:upgrade-collection {name}'." Halt.
@@ -144,9 +146,12 @@ Add a new entry to `installed_collections` in `org-config.json`:
   "repo_url": "{repo_url}",
   "source_tag": "{the tag the local clone was checked out to}",
   "install_method": "git-clone",
-  "status": "downloaded"
+  "status": "downloaded",
+  "marketplace_id": "{the marketplace_id of the catalog entry selected in Step 1}"
 }
 ```
+
+**`marketplace_id` is provenance** (`standards.md` § "Marketplaces"): the catalog this entry was selected from, written once here and never recomputed later from whatever catalogs happen to be subscribed. Include it in the safe org-config rewrite's **content assert** — the staged config must contain this entry with a non-empty `marketplace_id` before the write.
 
 (`zip_url` is retained in the marketplace directory entry only as the deprecated fallback; it is no longer written as the `install_method` here.)
 

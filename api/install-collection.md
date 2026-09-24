@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.2.1
+version: 2.3.0
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) via permission-change-helper at Step 5.5.
 stateful: true
@@ -116,6 +116,7 @@ On confirmation:
 
 1. Write `collection-setup-responses.md` to `/{collection-name}/setup/` on the remote filesystem via `aifs_write` with `setup_status: complete`
 2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`, add `installed_date: {today}`
+   - **Provenance (2.3.0 — multi-marketplace):** never change an existing `marketplace_id`. If the entry has **no `marketplace_id` key** — the sideload path, where the collection's files were placed at `/{name}/` and registered `status: downloaded` without `download-collection` — write `"marketplace_id": null` and tell the admin: "Recorded as sideloaded (no origin catalog). If it belongs to a catalog you subscribe to, set that in '@ai:edit-org' → Manage marketplaces." `install-collection` never reads a catalog and never infers provenance from one.
 3. Write `current-state.md` to task state directory recording completion
 
 **Guardrail — never mark a collection installed without writing its responses file (bug `20260615-8d20ea22-setupresp`).** Step 1 is MANDATORY and is NOT skipped by an "accept defaults / don't ask me questions" shortcut: a defaults install still writes `collection-setup-responses.md` with `setup_status: complete` (and the resolved default/org-mandated values) — an empty-but-complete file when the collection has no org-level parameters. Without it, `org-setup` hard-blocks **every member** from installing any capability from this collection. If you're installing several collections at once "with defaults," loop this task per collection (each writing its responses) — do **not** bulk-upload + register collections without their responses files. After Step 1, verify it landed: `aifs_read("/{collection-name}/setup/collection-setup-responses.md")` must succeed with `setup_status: complete` before proceeding to Step 2.

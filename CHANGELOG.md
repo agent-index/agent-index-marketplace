@@ -1,5 +1,28 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.20.0] — 2026-09-23 — Multi-marketplace: consumer side
+
+**MINOR — additive. Requires agent-index-core 3.30.0.** An org with one catalog notices no change beyond a header line. Design record: `68-solution-design-multi-marketplace.md`; normative model: core `standards.md` § "Marketplaces: catalogs, subscriptions, provenance".
+
+### Added
+- **`internal/resolve-marketplaces.md`** — the single place a marketplace task obtains catalog entries. Admin-only, read-only. Reads every enabled subscription in `org-config.json` → `marketplaces[]` (or synthesises the legacy public one) from the admin's local clones; verifies the clone's `origin` against the subscription's trust anchor by reading `.git/config` (no git from the sandbox); verifies catalog identity and namespaces (overlap, own-entry, intrusion); a failing catalog is unavailable in full. Default policy is **fail loudly** — `skip_if_unavailable` opts a single source into a visible skip. No precedence rule: an ambiguous name is refused and asked.
+
+### Changed
+- **`download-collection` 2.7.0** — looks the collection up across subscribed catalogs and writes **`marketplace_id`** (provenance) into the new `installed_collections[]` entry; content-asserted in the safe org-config rewrite.
+- **`check-updates` 2.12.0 — Step 3 rewritten.** Compares each installed collection against **its own origin catalog** by `marketplace_id`, with explicit results for sideloaded, origin-disabled, origin-unsubscribed and origin-unreadable collections. Never reports "up to date" for a collection whose origin catalog could not be read. Non-admins get the org version from `/shared/dist/manifest.json`. **Removes the last reader of `/shared/marketplace-cache/`**, which had no writer since 2.17.0 (`mktcatalogwebfetch`) and was comparing against a June catalog — `library` would have been labelled "org collection — no marketplace tracking."
+- **`upgrade-collection` 1.4.0** — target version comes from the origin catalog only; sideloaded / disabled / unsubscribed origins halt with a named reason; `marketplace_id` is never changed by an upgrade. **Also a Release-C holdout closed:** files are now sourced from the admin's tag-pinned local clone (clone manifest + committed `clone-repos`), as `download-collection` has done since 2.16.0 — previously this task still read the cache and downloaded `zip_url` from GitHub, which cannot reach a private catalog's repo. `zip_url` survives only as the deprecated fallback.
+- **`list-marketplace-collections` 2.1.0** — one section per catalog, public last so a small private catalog is not buried; single-catalog output unchanged. Shows each catalog's `directory_version` / `last_updated`; lists disabled catalogs by name.
+- **`list-org-collections` 2.1.0** — groups by provenance from `org-config.json` alone (no catalog read, so still works for members).
+- **`install-collection` 2.3.0** — never changes an existing `marketplace_id`; an entry with no key (the sideload path) is recorded as `marketplace_id: null` with a notice.
+- **Collection setup 2.1.0** — no longer creates `/shared/marketplace-cache/` or fetches the directory from GitHub at marketplace setup; verifies catalogs through the resolver instead. `marketplace_cache_ttl_hours` retained but unused (removing a parameter would be a breaking setup change).
+- **Capability setup templates 2.0.1** (`download-collection`, `download-and-install-collection`, `install-collection`, `list-marketplace-collections`, `list-org-collections`) — removed the pre-setup check requiring `/shared/marketplace-cache/` to exist.
+
+### Deprecated
+- **`refresh-marketplace-cache` 2.5.0** — no task invokes it. Guarded to halt on any clone-publishing org; runs only for a not-yet-migrated `url`-source org. Removal planned for a MAJOR release.
+
+### Admin action (optional)
+- `/shared/marketplace-cache/` is now inert on every clone-publishing org and may be deleted manually. Nothing is deleted automatically.
+
 ## [2.19.2] — 2026-07-23 — Release C.1.5.2: torn-write tail restoration (tornwritefiledamage)
 
 ### Fixed
@@ -368,6 +391,7 @@ After this release lands, marketplace collections have a coherent admin upgrade 
 - `marketplace-directory.json` â€” bundled directory with initial projects collection entry
 - `collection-setup.md` â€” org admin setup for cache TTL configuration
 - Setup templates and manifests for all six tasks
+
 
 
 

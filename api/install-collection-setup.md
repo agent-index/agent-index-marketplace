@@ -1,7 +1,7 @@
 ---
 name: install-collection-setup
 type: setup
-version: 2.0.0
+version: 2.0.1
 collection: agent-index-marketplace
 description: Setup for the install-collection task
 target: install-collection
@@ -18,7 +18,7 @@ This installs the Install Collection task. Run org-admin setup for a downloaded 
 ## Pre-Setup Checks
 
 - `org-config.json` is readable on the remote filesystem (via `aifs_read`) → if not: "Org configuration isn't readable. Run '@ai:create-org' first."
-- `/shared/marketplace-cache/` exists → if not: "Marketplace cache directory is missing. The marketplace collection may not be fully set up — contact your org admin."
+- (Removed in marketplace 2.20.0: the `/shared/marketplace-cache/` existence check. The cache is decommissioned; catalog availability is checked at run time by `/internal/resolve-marketplaces.md`, admin-side.)
 
 ---
 

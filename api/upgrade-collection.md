@@ -1,16 +1,15 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.3.2
+version: 1.4.0
 collection: agent-index-marketplace
-description: Upgrade an already-installed marketplace collection to a newer version. Fetches new files from the registry-declared zip_url, uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
+description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
 produces_artifacts: false
 produces_shared_artifacts: false
 dependencies:
   skills: []
-  tasks:
-    - refresh-marketplace-cache
+  tasks: []
 external_dependencies: []
 reads_from: null
 writes_to: "/org-config.json, /<collection>/, /shared/updates/"
@@ -31,8 +30,8 @@ Closes bug `20260502-8d20ea22` — the `download-collection` and `download-and-i
 ### Inputs
 
 - `<collection_name>` (required, positional) — name of an installed marketplace collection.
-- `--to <version>` (optional) — target a specific version. Default: latest in `marketplace-directory.json`.
-- `--check-upstream` (optional) — refresh marketplace cache before reading the directory. Default: skip if cache is fresh (per `refresh-marketplace-cache`'s freshness rule).
+- `--to <version>` (optional) — target a specific version. Default: `current_version` in the collection's **origin catalog** (its `marketplace_id`).
+- `--check-upstream` (optional) — refresh the admin's catalog and collection clones (committed `lib/clone/clone-repos` script, run natively by the admin) before resolving the target. There is no catalog cache to refresh (1.4.0).
 - `--dry-run` (optional) — show the upgrade plan without applying.
 
 ### Outputs
@@ -65,28 +64,38 @@ Look up the collection in `installed_collections[]`. If not present, surface:
 
 Halt.
 
-### Step 2: Refresh Marketplace Cache (Conditional)
+### Step 2: Resolve the Origin Catalog (changed in 1.4.0 — multi-marketplace)
 
-If `--check-upstream` was passed OR the marketplace cache is older than 1 hour, invoke `run agent-index-marketplace task refresh-marketplace-cache` in automatic mode. Otherwise use the cached `marketplace-directory.json` at `/shared/marketplace-cache/marketplace-directory.json`.
+This step no longer reads `/shared/marketplace-cache/` (decommissioned — no writer since marketplace 2.17.0 `mktcatalogwebfetch`) and no longer invokes `refresh-marketplace-cache`.
 
-If the cache cannot be loaded after refresh (network or registry issue): surface the error and halt.
+If `--check-upstream` was passed: emit the infra clone manifest (subscribed `clone` catalogs) plus this collection's repo per the `clone-manifest-emitter` subroutine, surface the committed `lib/clone/clone-repos` invocation, and wait for the admin to confirm it ran. **Never author a clone script; never run git from the sandbox.**
+
+Follow `/internal/resolve-marketplaces.md`. On `error`, surface the named errors and halt.
+
+Read the installed entry's **provenance**, `installed_collections[<name>].marketplace_id`:
+
+- key absent (not yet back-filled) → treat as `agent-index-public`.
+- `null` → halt: "`{name}` was sideloaded — it has no origin catalog to upgrade from. Place the new version's files at `/{name}/` and run `@ai:install-collection {name}`, or record a catalog for it in `@ai:edit-org` → Manage marketplaces."
+- a disabled subscription → halt: "`{name}` came from {display_name}, which is disabled. Re-enable it in `@ai:edit-org` → Manage marketplaces to upgrade."
+- no such subscription → halt: "`{name}` came from `{id}`, which this org no longer subscribes to."
+- a skipped subscription → halt with the resolver's error for that source.
 
 ### Step 3: Look Up Target Version
 
-Find `<collection_name>` in `marketplace-directory.json` `collections[]`. If not present:
+Find `<collection_name>` **in the origin catalog's entries only** — never in another catalog, even if one offers the same name. If not present:
 
-> "`{name}` is no longer in the marketplace directory. The collection may have been deprecated by its author. Your installed copy continues to work, but no upgrades are available. To remove it, manually edit `org-config.json` (a future `@ai:remove-collection` task is planned but not yet implemented)."
+> "`{name}` is no longer listed in {origin display_name}. The collection may have been deprecated by its author. Your installed copy continues to work, but no upgrades are available. To remove it, manually edit `org-config.json` (a future `@ai:remove-collection` task is planned but not yet implemented)."
 
 Halt.
 
 Resolve target version:
 
-- If `--to <version>` was provided: validate that `<version>` exists in the directory's `current_version` field OR in any `version_history[]` array (if the directory schema includes one in the future). If unknown, surface "Unknown version `{version}` for `{name}`. The directory's current_version is `{x}`. Pass `--to {x}` or omit `--to` for latest."
-- Otherwise: use the directory's `current_version`.
+- If `--to <version>` was provided: validate that `<version>` exists in the origin catalog entry's `current_version` field OR in any `version_history[]` array (if the catalog schema includes one in the future). If unknown, surface "Unknown version `{version}` for `{name}`. {origin display_name}'s current_version is `{x}`. Pass `--to {x}` or omit `--to` for latest."
+- Otherwise: use the origin catalog entry's `current_version`.
 
 If `target_version <= installed_version`: surface "`{name}` is already at version `{installed}` (target was `{target}`). Nothing to do." Halt cleanly.
 
-If the directory entry has a `min_required_version` field and `target_version < min_required_version`: surface "Cannot upgrade `{name}` to `{target}` — directory says minimum allowed version is `{min}`. Try `--to {min}` or omit `--to`." Halt.
+If the catalog entry has a `min_required_version` field and `target_version < min_required_version`: surface "Cannot upgrade `{name}` to `{target}` — the catalog says minimum allowed version is `{min}`. Try `--to {min}` or omit `--to`." Halt.
 
 ### Step 4: Detect Migration Needs
 
@@ -94,13 +103,17 @@ If the upgrade crosses a MAJOR version boundary (e.g., installed 1.x → target 
 
 For multi-MAJOR jumps (1.x → 3.x), chain migration scripts: 1-to-2 then 2-to-3. The chained scripts get presented as a sequence in the confirmation summary.
 
-### Step 5: Download and Stage
+### Step 5: Source and Stage (changed in 1.4.0 — Release-C, from the local clone)
 
-Download the collection's zip from the marketplace directory's `zip_url` to a local staging directory under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`. If the `zip_url` is branch-form (not pinned to a tag or SHA), rewrite it to its SHA-pinned form using the SHA resolved by the Distribution fetch protocol (standards.md), so the archive cannot be served stale. Extract the zip in place.
+**Source the target version from the admin's tag-pinned LOCAL GIT CLONE — the same procedure as `download-collection` Step 3.** Emit a clone manifest via the `clone-manifest-emitter` subroutine for `{name}` at `v{target_version}` (git URL = the origin catalog entry's `repo_url`) and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script natively. **Do not author a bespoke clone script** (`clonescripttagassumption`). Once the admin confirms, the staged tree is the clone working tree at that tag. Record the resolved tag as `source_tag`.
 
-Verify the extracted tree contains `collection.json` with `version` matching `target_version`.
+This matters for private catalogs: a private catalog's collection repo is only reachable with the admin's git credentials, which the clone script uses and a web zip fetch does not.
 
-**If mismatch (changed in 2.11.0 — the directory is the source of truth):** since the directory was refreshed via the SHA-pinned protocol (Step 2), a persisting version mismatch means the **listing is wrong**, not the cache — the collection author shipped content without updating the directory entry (or vice versa). HALT with: "The marketplace listing advertises `{target_version}` but the repo's zip contains `{actual}`. This is a listing bug — the directory entry and the repo are out of sync. Fix the listing (developer collection preflight Checks 9/10 guard this at author time) and re-run. Not proceeding with unadvertised content." Do NOT offer to proceed with the zip version, and do NOT inspect GitHub directly as an alternate source of truth — bypassing the directory is how unadvertised, unreviewed content reaches an org.
+The `zip_url` path survives **only** as the deprecated fallback for a not-yet-migrated org with no clone tooling; if used, emit the standards.md deprecation warning, SHA-pin the archive per the Distribution fetch protocol, and stage under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`.
+
+Verify the staged tree contains `collection.json` with `version` matching `target_version`.
+
+**If mismatch (the catalog is the source of truth):** a mismatch means the **listing is wrong** — the collection author shipped content without updating the catalog entry (or vice versa). HALT with: "{origin display_name} advertises `{target_version}` but the repo at that tag contains `{actual}`. This is a listing bug — the catalog entry and the repo are out of sync. Fix the listing (developer collection preflight Checks 12/13 guard this at author time) and re-run. Not proceeding with unadvertised content." Do NOT offer to proceed with the other version, and do NOT inspect GitHub directly as an alternate source of truth.
 
 ### Step 6: Compute Diff Against Remote
 
@@ -144,7 +157,8 @@ Surface the plan summary to the admin:
 Upgrade plan for {collection}:
   current version: {installed_version}
   target version:  {target_version}
-  source URL:      {zip_url}
+  origin catalog:  {origin display_name} ({marketplace_id})
+  source:          {local clone at v{target_version} | zip_url (deprecated fallback)}
 
 Files to upload:    {N}
 Files to delete:    {M}  (excluding preserve-list)
@@ -191,6 +205,8 @@ Read `org-config.json`, mutate:
 - `installed_collections[<name>].version ← <target_version>`
 - `installed_collections[<name>].upgraded_date ← <today YYYY-MM-DD>`
 - `installed_collections[<name>].upgraded_by ← <admin's member_hash>`
+- `installed_collections[<name>].source_tag ← <the resolved tag>` (clone source)
+- `installed_collections[<name>].marketplace_id` — **unchanged**. Provenance is written at download and never recomputed; an upgrade from the origin catalog does not touch it. If the key is absent (pre-back-fill org), write `"agent-index-public"` — the catalog Step 2 actually used.
 
 Write back via `aifs_write("/org-config.json", ...)`.
 
@@ -237,7 +253,7 @@ If `provisioning_needed`, do not present the upgrade as complete in any closing 
 
 ### Step 12: Cleanup
 
-Delete the staging directory `<project_dir>/.agent-index/staging/upgrade-{collection}-{timestamp}/` if all upload steps succeeded. Leave it in place if any step failed (for debugging).
+If the deprecated zip fallback was used, delete the staging directory `<project_dir>/.agent-index/staging/upgrade-{collection}-{timestamp}/` if all upload steps succeeded. (A clone source needs no cleanup — the clone stays under the install root.) Leave it in place if any step failed (for debugging).
 
 ---
 
@@ -245,9 +261,10 @@ Delete the staging directory `<project_dir>/.agent-index/staging/upgrade-{collec
 
 | Failure | Recovery |
 |---|---|
-| Marketplace cache unreachable | Surface and halt. Admin retries with `--check-upstream` after fixing connectivity. |
-| Zip download fails | Skip-or-halt prompt. Admin retries. |
-| Zip is corrupt or extract fails | Halt. Staging dir is left for debugging. |
+| Origin catalog unreadable (resolver error) | Surface the named error and remedy; halt. Refresh clones with `--check-upstream` if the source is missing. |
+| Clone at target tag missing / clone script failed | Halt. Admin re-runs the committed `clone-repos` script; the per-repo summary names the failure. |
+| Zip download fails (deprecated fallback only) | Skip-or-halt prompt. Admin retries. |
+| Zip is corrupt or extract fails (deprecated fallback only) | Halt. Staging dir is left for debugging. |
 | Single `aifs_write` fails partway through Step 8 | Surface error, halt. org-config NOT yet updated (Step 9). Re-running diffs against the partial-upload state and continues from where it left off. |
 | Verification mismatch in Step 11 | Surface warning. Suggest re-run. Org-config has already been updated in Step 9 (since uploads succeeded), so the next run will see no diff if the partial-upload state matches the target — verification confirms cleanly on retry. |
 
