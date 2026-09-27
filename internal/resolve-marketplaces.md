@@ -1,6 +1,6 @@
 # Internal subroutine: resolve-marketplaces
 
-**Added in:** agent-index-marketplace 2.20.0 (requires agent-index-core 3.30.0)
+**Added in:** agent-index-marketplace 2.20.0 (requires agent-index-core 3.30.0). **Collision rules revised in 2.21.0** (core 3.31.0): unique names across catalogs; namespaces are optional reservations.
 **Normative model:** `agent-index-core/standards.md` § "Marketplaces: catalogs, subscriptions, provenance"
 **Used by:** `list-marketplace-collections`, `download-collection`, `check-updates`, `upgrade-collection`. (`list-org-collections` groups by provenance from `org-config.json` alone and reads no catalog.)
 
@@ -54,19 +54,21 @@ For each catalog read in Step 2:
 
 - **`marketplace_id`.** If the catalog declares one, it must equal the subscription `id`. If the catalog declares none, it is accepted **only** when the subscription `id` is `agent-index-public` (legacy public catalog, read as `marketplace_id: "agent-index-public"`, `namespace: null`). Otherwise → unavailable, error `identity_mismatch` / `identity_missing`.
 - **`namespace`.** Catalog `namespace` must equal the subscription's `namespace` (the value recorded at subscribe). A catalog that changed its namespace after subscription → unavailable, error `namespace_changed`; the admin re-subscribes deliberately.
-- **Only the public catalog may be un-namespaced.** `namespace: null` on any catalog other than `agent-index-public` → unavailable, error `namespace_required`.
+- (Removed in 2.21.0: the 3.30.0 rule that every non-public catalog must declare a namespace. `namespace: null` is valid for any catalog.)
 
 ---
 
-## Step 4: Verify namespaces across all catalogs
+## Step 4: Check reservations and unique names across all catalogs (revised in 2.21.0)
 
-Let `R` = the set of non-null namespaces across all **readable** catalogs from Step 3.
+Let `R` = the non-null namespaces across all **readable** catalogs from Step 3.
 
-1. **Overlap.** For any two `a`, `b` in `R`: if `a + "-"` is a prefix of `b + "-"` or vice versa → both catalogs unavailable, error `namespace_overlap`.
-2. **Own entries.** Every entry in a catalog with namespace `n` must have `name` starting with `n + "-"`. Any violation → that catalog unavailable, error `namespace_violation`, listing the offending names.
-3. **Foreign entries.** No entry in catalog X may have a `name` starting with `n + "-"` for a namespace `n` reserved by a *different* catalog Y → catalog **X** unavailable (the intruder, not the owner), error `namespace_intrusion`, naming the entries and Y.
+1. **Overlap (catalog-level).** For any two `a`, `b` in `R`: if `a + "-"` is a prefix of `b + "-"` or vice versa → **both** catalogs unavailable, error `namespace_overlap`. This is a configuration error in the catalogs themselves, so it is not scoped down to entries.
+2. **Intrusion (entry-level).** An entry in catalog X whose `name` starts with `n + "-"`, where `n` is reserved by a *different* catalog Y, is **excluded** from X's entries and recorded in `conflicts[]` as `{ "kind": "namespace_intrusion", "name", "catalog": X, "reserved_by": Y }`. Y keeps the prefix; the rest of X stays usable.
+3. **Duplicate names (entry-level).** After step 2, any `name` offered by more than one catalog is a conflict: keep **every** copy in `entries` but mark each with `"conflict": ["<other catalog ids>"]`, and record `{ "kind": "duplicate_name", "name", "catalogs": [...] }` in `conflicts[]`. No copy is preferred over another.
 
-A catalog that fails any check is **unavailable in full** — never partially trusted, never filtered down to its "good" entries.
+(2.20.0's "own entries must start with the catalog's namespace" check is removed. A catalog's own entries may use any names.)
+
+Conflicts never make a catalog unavailable and never trigger the Step 5 failure policy — they are always reported alongside an otherwise-usable result.
 
 ---
 
@@ -91,6 +93,7 @@ For each unavailable catalog:
     { "id": "…", "display_name": "…", "namespace": "cx", "state": "skipped", "error": "source_missing" }
   ],
   "disabled": [ { "id": "…", "display_name": "…" } ],
+  "conflicts": [ { "kind": "duplicate_name", "name": "…", "catalogs": ["…", "…"] } ],
   "entries": [
     { "marketplace_id": "agent-index-public", "marketplace_display_name": "Agent Index Marketplace",
       "entry": { "name": "projects", "current_version": "4.3.0", "…": "…" } }
@@ -98,13 +101,16 @@ For each unavailable catalog:
 }
 ```
 
-`entries` is the merged list across every `ok` catalog, each entry tagged with the catalog it came from. `display_name` is the subscription's local label (falls back to the catalog's).
+`entries` is the merged list across every `ok` catalog, each entry tagged with the catalog it came from; an entry involved in a duplicate-name conflict also carries `conflict: [other catalog ids]`. Intruding entries are not in `entries` — only in `conflicts[]`. `display_name` is the subscription's local label (falls back to the catalog's).
 
 ---
 
 ## Lookup by name (for callers resolving one collection)
 
-Match `name` exactly against `entries`. With namespaces enforced there is at most one match. If more than one is somehow found (e.g. a legacy catalog with no identity alongside another), **refuse and ask** the admin which catalog they mean, listing each by display name. **There is no priority or precedence rule** — never pick one silently (`standards.md` § "Collisions").
+Two lookups, used for different purposes:
+
+- **New install** (`download-collection`): match `name` across all `entries`. Exactly one non-conflicted match → use it. A match marked `conflict` → **refuse**: "'{name}' is offered by more than one catalog you subscribe to ({display names}). Resolve it in one of the catalogs, or disable one subscription, before installing." **There is no priority or precedence rule** — never pick one (`standards.md` § "Collisions"). A name found only in `conflicts[]` as an intrusion → refuse, naming the reserving catalog.
+- **Origin lookup** (`check-updates`, `upgrade-collection`): match `name` **only among entries whose `marketplace_id` equals the installed collection's origin**. A conflict marker on that entry does not block it — the origin is already fixed by provenance, so another catalog's same-named entry cannot redirect an update — but callers surface it as a warning.
 
 No match → the caller reports "not in any subscribed catalog" and, if the name is in `org-config.json` `installed_collections[]` with `marketplace_id: null`, labels it sideloaded.
 

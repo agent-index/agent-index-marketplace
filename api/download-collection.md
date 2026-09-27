@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.7.0
+version: 2.7.1
 collection: agent-index-marketplace
 description: Downloads a collection from one of the org's subscribed marketplace catalogs to the org's remote filesystem, recording which catalog it came from. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
 stateful: false
@@ -45,7 +45,8 @@ If not: ask "Which collection would you like to download? Say '@ai:list-marketpl
 - `error` → surface the named errors and remedies; halt. Do not download from a partially verified catalog set.
 - `ok` → look up `{name}` with the resolver's **Lookup by name**:
   - Exactly one match → keep the entry **and its `marketplace_id`** for Step 6.
-  - More than one → refuse and ask which catalog (by display name). There is no precedence rule.
+  - The match is marked `conflict` (the same name is offered by more than one subscribed catalog, 2.21.0) → refuse: "'{name}' is offered by more than one catalog you subscribe to ({display names}). Resolve it in one of the catalogs, or disable one subscription, before installing." Halt. There is no precedence rule — never pick one.
+  - The name appears only as a `namespace_intrusion` in `conflicts[]` → refuse, naming the catalog that reserves the prefix. Halt.
   - None → surface "'{name}' isn't in any catalog this org subscribes to ({display names}). Check the name, say '@ai:list-marketplace-collections' to browse, or add a catalog via '@ai:edit-org' → Manage marketplaces." Halt.
 
 Check `org-config.json` — if this collection is already present with `status: installed`:

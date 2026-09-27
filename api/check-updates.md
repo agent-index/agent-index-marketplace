@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.12.0
+version: 2.12.1
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -246,7 +246,7 @@ If the directory fetch fails (network, 404), record `unable to check (network or
 | a **disabled** subscription | `origin catalog disabled ({display_name})` — re-enable in `@ai:edit-org` → Manage marketplaces |
 | an id with **no** subscription | `origin catalog unsubscribed ({id})` |
 | a subscription the resolver **skipped** | `unable to check ({display_name} unavailable: {error})` |
-| an **ok** subscription | find the entry by `name` **in that catalog only** — never in another catalog |
+| an **ok** subscription | find the entry by `name` **in that catalog only** — never in another catalog. If that entry carries a `conflict` marker (the same name is also offered by another catalog, 2.21.0), still compare against the origin entry and add the note "also offered by {other display names} — ignored; this collection tracks {origin display name}" |
 
 For an ok origin catalog:
 - entry `current_version` > installed `version`: `update available` (installed → latest), and name the catalog when more than one is subscribed

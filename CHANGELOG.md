@@ -1,5 +1,18 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.21.0] — 2026-09-27 — Multi-marketplace: unique names instead of mandatory prefixes
+
+**MINOR — requires agent-index-core 3.31.0.** Implements the relaxed collision rules in core `standards.md` 2.6.0.
+
+### Changed
+- **`internal/resolve-marketplaces.md`** — Step 4 rewritten. Removed: "own entries must start with the catalog's namespace" and "non-public catalogs must declare a namespace". Added: duplicate names across catalogs are marked `conflict` on every copy and listed in a new `conflicts[]`; an entry intruding into another catalog's reserved prefix is excluded and listed in `conflicts[]`. Conflicts are scoped to the names involved and never make a catalog unavailable. Overlapping reservations still make both catalogs unavailable. Lookup split into **new-install** (refuses a conflicted name) and **origin** (looks only in the installed collection's own catalog; a conflict there is a warning, not a block).
+- **`download-collection` 2.7.1** — refuses a conflicted or intruding name, naming the catalogs; replaces the old "ask which catalog" path.
+- **`check-updates` 2.12.1**, **`upgrade-collection` 1.4.1** — keep tracking the origin catalog when a same-named entry appears elsewhere, and say so.
+- **`list-marketplace-collections` 2.1.1** — shows conflicted entries with `⚠` and lists intrusions; conflicts never hide the rest of a catalog.
+
+### Verified
+Executable model of the resolver re-run against the live org config, the public catalog and the new private catalog: 17/17, including a namespaced catalog holding a non-prefixed name, an un-namespaced private catalog, a duplicate name (listing still usable, new install refused, installed collection still tracks its origin), a public entry intruding into `cx-` (only that entry excluded), and the unchanged hard failures (overlap, identity mismatch, missing source, trust anchor, absolute ref).
+
 ## [2.20.0] — 2026-09-23 — Multi-marketplace: consumer side
 
 **MINOR — additive. Requires agent-index-core 3.30.0.** An org with one catalog notices no change beyond a header line. Design record: `68-solution-design-multi-marketplace.md`; normative model: core `standards.md` § "Marketplaces: catalogs, subscriptions, provenance".
@@ -391,6 +404,7 @@ After this release lands, marketplace collections have a coherent admin upgrade 
 - `marketplace-directory.json` â€” bundled directory with initial projects collection entry
 - `collection-setup.md` â€” org admin setup for cache TTL configuration
 - Setup templates and manifests for all six tasks
+
 
 
 

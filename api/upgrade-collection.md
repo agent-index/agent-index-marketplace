@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.4.0
+version: 1.4.1
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -82,7 +82,7 @@ Read the installed entry's **provenance**, `installed_collections[<name>].market
 
 ### Step 3: Look Up Target Version
 
-Find `<collection_name>` **in the origin catalog's entries only** — never in another catalog, even if one offers the same name. If not present:
+Find `<collection_name>` **in the origin catalog's entries only** — never in another catalog, even if one offers the same name. If the origin entry carries a `conflict` marker (2.21.0), proceed from the origin entry and include in the plan: "Note: {other display names} also lists `{name}`. It is ignored — this collection upgrades from {origin display name}." If not present:
 
 > "`{name}` is no longer listed in {origin display_name}. The collection may have been deprecated by its author. Your installed copy continues to work, but no upgrades are available. To remove it, manually edit `org-config.json` (a future `@ai:remove-collection` task is planned but not yet implemented)."
 

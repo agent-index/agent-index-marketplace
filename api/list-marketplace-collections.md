@@ -1,7 +1,7 @@
 ---
 name: list-marketplace-collections
 type: task
-version: 2.1.0
+version: 2.1.1
 collection: agent-index-marketplace
 description: Shows all collections available across the org's subscribed marketplace catalogs, grouped by catalog, with download and install status for each.
 stateful: false
@@ -66,7 +66,7 @@ For each resolver entry, determine its status relative to this org:
 | In `org-config.json` with `status: installed`, version matches this entry's `current_version` | `installed` |
 | In `org-config.json` with `status: installed`, version behind this entry's `current_version` | `installed — update available` |
 
-Compare versions **only against the entry from the collection's own origin catalog** (`installed_collections[].marketplace_id`). With namespaces enforced a name appears in at most one catalog, so this is normally the same entry; if the installed entry's `marketplace_id` differs from the catalog the entry was found in, show `installed from {origin display name}` and do not claim an update.
+Compare versions **only against the entry from the collection's own origin catalog** (`installed_collections[].marketplace_id`). With unique names enforced a name appears in at most one catalog unless it is marked `conflict`, so this is normally the same entry; if the installed entry's `marketplace_id` differs from the catalog the entry was found in, show `installed from {origin display name}` and do not claim an update.
 
 ---
 
@@ -107,6 +107,8 @@ Status icons:
 - `↑` — installed, update available
 - `⬇` — downloaded, not installed
 - `↓` — available, not downloaded
+
+**Conflicts (2.21.0).** An entry marked `conflict` is shown in each catalog's section with `⚠` and "also offered by {other display names} — resolve before installing". If `conflicts[]` has any `namespace_intrusion`, add one line per intrusion after the list: "{catalog} lists `{name}`, but `{ns}-` is reserved by {reserving catalog} — not shown." Conflicts never hide the rest of a catalog.
 
 If `disabled[]` is non-empty, add one line after the list: "Not shown: {display names} (disabled — '@ai:edit-org' → Manage marketplaces to re-enable)."
 
