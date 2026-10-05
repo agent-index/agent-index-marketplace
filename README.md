@@ -11,6 +11,7 @@ The marketplace collection for agent-index. Provides org admins with the tools t
 - **download-collection** — Download a marketplace collection to your org's remote filesystem (ZIP download, uploaded via `aifs_*` tools)
 - **install-collection** — Run the org-admin setup interview for a downloaded collection
 - **download-and-install-collection** — Download and install in a single flow (recommended for most installs)
+- **upgrade-collection** — Upgrade an installed collection to a newer version (admin)
 - **refresh-marketplace-cache** — *Deprecated (2.20.0).* Legacy web-fetched cache for a not-yet-migrated org only
 - **check-updates** — Comprehensive update check across infrastructure, installed collections, and member capabilities
 
@@ -26,7 +27,7 @@ Catalogs are **admin-only** and are read from the admin's local clones under the
 
 `/shared/marketplace-cache/` is decommissioned; nothing reads it.
 
-Collections are sourced from the admin's tag-pinned local clone (Release C; a ZIP download survives only as a deprecated fallback) and uploaded to the org's remote filesystem via `aifs_write_batch`. The remote filesystem is accessed through `aifs_*` tools running in exec mode — all org-level data (collection directories, org-config) lives on the remote filesystem while member data stays local.
+Collections are sourced from the admin's tag-pinned local clone — or, on an org with a `distribution_channel`, the clone's `channel/<name>` head (2.22.0) — (Release C; a ZIP download survives only as a deprecated fallback) and uploaded to the org's remote filesystem via `aifs_write_batch`. The remote filesystem is accessed through `aifs_*` tools running in exec mode — all org-level data (collection directories, org-config) lives on the remote filesystem while member data stays local.
 
 ---
 

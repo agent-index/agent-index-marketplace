@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.4.1
+version: 1.5.0
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -30,14 +30,14 @@ Closes bug `20260502-8d20ea22` — the `download-collection` and `download-and-i
 ### Inputs
 
 - `<collection_name>` (required, positional) — name of an installed marketplace collection.
-- `--to <version>` (optional) — target a specific version. Default: `current_version` in the collection's **origin catalog** (its `marketplace_id`).
-- `--check-upstream` (optional) — refresh the admin's catalog and collection clones (committed `lib/clone/clone-repos` script, run natively by the admin) before resolving the target. There is no catalog cache to refresh (1.4.0).
+- `--to <version>` (optional) — target a specific version. Default: `current_version` in the collection's **origin catalog** (its `marketplace_id`). Not accepted on a channel org: the target there is the channel head (channels, 2.22.0).
+- `--check-upstream` (optional) — refresh the admin's catalog and collection clones (committed `lib/clone/clone-repos` script, run natively by the admin) before resolving the target. There is no catalog cache to refresh (1.4.0). The manifests carry the org's channel (1.5.0).
 - `--dry-run` (optional) — show the upgrade plan without applying.
 
 ### Outputs
 
 - `/<collection>/` — uploaded with new version's files (overwriting existing) on the remote filesystem.
-- `/org-config.json` — `installed_collections[<name>].version` updated to the new version, `installed_collections[<name>].upgraded_date` set.
+- `/org-config.json` — `installed_collections[<name>].version` updated to the new version, `installed_collections[<name>].upgraded_date` set, `source_ref`/`source_commit` (and `source_tag` for a tag) recorded.
 - `/shared/updates/update-log.json` — new `collection-update` entry written for members to consume via `@ai:apply-updates`.
 
 ### Cadence & Triggers
@@ -68,7 +68,7 @@ Halt.
 
 This step no longer reads `/shared/marketplace-cache/` (decommissioned — no writer since marketplace 2.17.0 `mktcatalogwebfetch`) and no longer invokes `refresh-marketplace-cache`.
 
-If `--check-upstream` was passed: emit the infra clone manifest (subscribed `clone` catalogs) plus this collection's repo per the `clone-manifest-emitter` subroutine, surface the committed `lib/clone/clone-repos` invocation, and wait for the admin to confirm it ran. **Never author a clone script; never run git from the sandbox.**
+If `--check-upstream` was passed: emit the infra clone manifest (subscribed `clone` catalogs) plus this collection's repo per the `clone-manifest-emitter` subroutine — each manifest with `"channel"` = org-config `distribution_channel` (`null` when unset; channels, 2.22.0) — surface the committed `lib/clone/clone-repos` invocation, and wait for the admin to confirm it ran. **Never author a clone script; never run git from the sandbox.**
 
 Follow `/internal/resolve-marketplaces.md`. On `error`, surface the named errors and halt.
 
@@ -95,6 +95,8 @@ Resolve target version:
 
 If `target_version <= installed_version`: surface "`{name}` is already at version `{installed}` (target was `{target}`). Nothing to do." Halt cleanly.
 
+**Channel orgs and leaving a channel (channels, 2.22.0; core 3.32.0):** when org-config `distribution_channel` is set, **or** the installed entry's `source_ref` starts with `channel/` (the org just left a channel and this collection still holds candidate content), skip the `target ≤ installed` check above — a channel candidate can keep the same version, or carry a lower one. "Nothing to do" is decided after the Step 5 clone instead: if the repo's `commit` in `<install_root>/.agent-index/clone-resolution.json` equals `installed_collections[<name>].source_commit`, surface "`{name}` is already at channel {channel} commit `{short sha}`. Nothing to do." and halt cleanly. If the installed entry has no `source_commit` (installed before 2.22.0), continue: the Step 6 diff decides.
+
 If the catalog entry has a `min_required_version` field and `target_version < min_required_version`: surface "Cannot upgrade `{name}` to `{target}` — the catalog says minimum allowed version is `{min}`. Try `--to {min}` or omit `--to`." Halt.
 
 ### Step 4: Detect Migration Needs
@@ -105,13 +107,13 @@ For multi-MAJOR jumps (1.x → 3.x), chain migration scripts: 1-to-2 then 2-to-3
 
 ### Step 5: Source and Stage (changed in 1.4.0 — Release-C, from the local clone)
 
-**Source the target version from the admin's tag-pinned LOCAL GIT CLONE — the same procedure as `download-collection` Step 3.** Emit a clone manifest via the `clone-manifest-emitter` subroutine for `{name}` at `v{target_version}` (git URL = the origin catalog entry's `repo_url`) and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script natively. **Do not author a bespoke clone script** (`clonescripttagassumption`). Once the admin confirms, the staged tree is the clone working tree at that tag. Record the resolved tag as `source_tag`.
+**Source the target version from the admin's LOCAL GIT CLONE at its resolved ref (a release tag, or the channel head on a channel org) — the same procedure as `download-collection` Step 3.** Emit a clone manifest via the `clone-manifest-emitter` subroutine for `{name}` at `v{target_version}` (git URL = the origin catalog entry's `repo_url`), with `"channel"` = org-config `distribution_channel` (`null` when unset), and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script natively. **Do not author a bespoke clone script** (`clonescripttagassumption`). Once the admin confirms, the staged tree is the clone working tree at the resolved ref. Read the repo's entry in `<install_root>/.agent-index/clone-resolution.json`: record its `ref` as `source_ref`, its `commit` as `source_commit`, and, when `ref_type` is `tag`, the ref as `source_tag` too (channels, 2.22.0).
 
 This matters for private catalogs: a private catalog's collection repo is only reachable with the admin's git credentials, which the clone script uses and a web zip fetch does not.
 
-The `zip_url` path survives **only** as the deprecated fallback for a not-yet-migrated org with no clone tooling; if used, emit the standards.md deprecation warning, SHA-pin the archive per the Distribution fetch protocol, and stage under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`.
+The `zip_url` path survives **only** as the deprecated fallback for a not-yet-migrated org with no clone tooling; if used, emit the standards.md deprecation warning, SHA-pin the archive per the Distribution fetch protocol, and stage under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`. **Never on a channel org** (org-config `distribution_channel` set): a ZIP is the default branch and would silently revert the org; refresh the clone with the channel instead (core 3.32.0).
 
-Verify the staged tree contains `collection.json` with `version` matching `target_version`.
+Verify the staged tree contains `collection.json` with `version` matching `target_version`. This check also holds on a channel org: the catalog clone is on the same channel, so its entry must match the channel head.
 
 **If mismatch (the catalog is the source of truth):** a mismatch means the **listing is wrong** — the collection author shipped content without updating the catalog entry (or vice versa). HALT with: "{origin display_name} advertises `{target_version}` but the repo at that tag contains `{actual}`. This is a listing bug — the catalog entry and the repo are out of sync. Fix the listing (developer collection preflight Checks 12/13 guard this at author time) and re-run. Not proceeding with unadvertised content." Do NOT offer to proceed with the other version, and do NOT inspect GitHub directly as an alternate source of truth.
 
@@ -134,7 +136,7 @@ The staging-vs-remote diff result is the "upgrade plan." If counts are `upload: 
 
 File sync alone is NOT a complete upgrade when the target version changes access control or org setup. From the Step 6 diff, set `provisioning_needed = true` if either:
 
-- **`collaborative-acls.json`** is `local_only` or `differs` — the new version declares ACL grants that only `install-collection` Step 5.5 applies (via `permission-change-helper`; this task never touches permissions).
+- **`collaborative-acls.json`** is `local_only` or `differs` — the new version declares ACL grants that only `install-collection` Step 5.5 applies (through the core permission-changes procedure; this task never touches permissions).
 - **`setup/collection-setup.md`** is `local_only` or `differs` — the setup interview changed (parameters added/removed, new Setup Completion steps such as creating shared folders). The org's `collection-setup-responses.md` may now be stale or reference retired parameters.
 
 As a supplementary signal, check the staged `CHANGELOG.md` for a "Requires Admin Attention" section under the target version and include its text in the plan if present.
@@ -158,7 +160,8 @@ Upgrade plan for {collection}:
   current version: {installed_version}
   target version:  {target_version}
   origin catalog:  {origin display_name} ({marketplace_id})
-  source:          {local clone at v{target_version} | zip_url (deprecated fallback)}
+  source:          {local clone at {source_ref}@{short source_commit} | zip_url (deprecated fallback)}
+  {on a channel org: "channel:         {name} (unreleased)"}
 
 Files to upload:    {N}
 Files to delete:    {M}  (excluding preserve-list)
@@ -168,16 +171,17 @@ Files synced:       {S}
 {if migration script present}
 Migration:
   This is a MAJOR-version upgrade. The collection ships an upgrade script at
-  /<collection>/upgrade/{from_major}-to-{target_major}.md that may need attention
-  during member-side @ai:apply-updates. Members will see the script's instructions
-  during their upgrade.
+  /<collection>/upgrade/{from_major}-to-{target_major}.md. If it has an ADMIN half,
+  run that FIRST, before provisioning (install-collection will ask whether it's done
+  before applying shared-folder grants). Members see the member half during
+  @ai:apply-updates.
 
 {if provisioning_needed}
 ⚠ PROVISIONING REQUIRED:
   This version changes {collaborative-acls.json / the setup interview / both}.
   After the file sync, you MUST run @ai:install-collection {name} to complete the
   upgrade (it is idempotent: re-runs the setup interview preserving prior answers,
-  creates any new shared folders, and applies ACL grants via the permission helper).
+  creates any new shared folders, and applies ACL grants, which you'll confirm).
   The upgrade is NOT functional until that step is done.
   {CHANGELOG "Requires Admin Attention" text, if found}
 
@@ -205,7 +209,9 @@ Read `org-config.json`, mutate:
 - `installed_collections[<name>].version ← <target_version>`
 - `installed_collections[<name>].upgraded_date ← <today YYYY-MM-DD>`
 - `installed_collections[<name>].upgraded_by ← <admin's member_hash>`
-- `installed_collections[<name>].source_tag ← <the resolved tag>` (clone source)
+- `installed_collections[<name>].upgraded_from ← <installed_version before this upgrade>` (2.4.0+; for the record. install-collection's upgrade-ordering guard is driven by `requires_upgrade_review` / `upgrade_reviews_confirmed`, not by versions)
+- `installed_collections[<name>].source_ref ← <clone-resolution ref>` and `.source_commit ← <clone-resolution commit>` (clone source; channels, 2.22.0)
+- `installed_collections[<name>].source_tag ← <the resolved tag>` — only when `ref_type` is `tag`; otherwise leave any existing value alone
 - `installed_collections[<name>].marketplace_id` — **unchanged**. Provenance is written at download and never recomputed; an upgrade from the origin catalog does not touch it. If the key is absent (pre-back-fill org), write `"agent-index-public"` — the catalog Step 2 actually used.
 
 Write back via `aifs_write("/org-config.json", ...)`.
@@ -222,15 +228,17 @@ Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array:
   "from_version": "<installed_version>",
   "target_version": "<target_version>",
   "has_migration": <true if migration script present>,
+  "ref": "<source_ref>",
+  "commit": "<source_commit>",
   "published_date": "<today ISO>",
   "published_by": "<admin's member_hash>",
   "summary": "<read collection.json's description field, or fall back to default>"
 }
 ```
 
-Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler).
+Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler). The `ref`/`commit` fields let apply-updates (core 3.32.0+) apply a same-version channel candidate (channels, 2.22.0).
 
-**Pair the snapshot (added in 2.10.0 — closes bug 20260605-8d20ea22-234936-c06b):** in the same step, update `/shared/updates/published-state.json`'s entry for this collection (version + api_members) exactly as publish-updates Step 5 would. Anything that writes an update-log entry keeps published-state in step; otherwise the next `@ai:publish-updates` diffs against a stale snapshot and proposes a duplicate re-broadcast.
+**Pair the snapshot (added in 2.10.0 — closes bug 20260605-8d20ea22-234936-c06b):** in the same step, update `/shared/updates/published-state.json`'s entry for this collection (version + api_members, plus `commit` and `ref` from core 3.32.0) exactly as publish-updates Step 5 would. Anything that writes an update-log entry keeps published-state in step; otherwise the next `@ai:publish-updates` diffs against a stale snapshot and proposes a duplicate re-broadcast.
 
 ### Step 11: Verify and Surface Result
 
@@ -239,17 +247,19 @@ Verify post-upload by reading `/<collection>/collection.json` from remote — co
 On success surface:
 
 ```
-✓ Upgraded {name} from {installed_version} to {target_version}
+✓ Upgraded {name} from {installed_version} to {target_version}{on a channel org: " (channel {channel}, {source_ref}@{short source_commit})"}
   Files: {N} uploaded, {M} deleted, {P} preserved
   Members will pick up the upgrade on their next @ai:apply-updates
 {if migration script: "  Members will see the migration script's instructions during their upgrade."}
 {if provisioning_needed:
 "  ⚠ NOT YET FUNCTIONAL — provisioning pending.
-  Run @ai:install-collection {name} now to apply the ACL/setup changes.
+  {if migration script has an admin half: "First finish the admin half of
+  upgrade/{script}.md, then"} run @ai:install-collection {name} → Apply access only
+  (or Reconfigure, if setup changed) to apply the ACL/setup changes.
   Until then, capabilities relying on the new grants WILL FAIL for members."}
 ```
 
-If `provisioning_needed`, do not present the upgrade as complete in any closing summary — repeat the `@ai:install-collection {name}` instruction as the explicit next step, and offer to run it immediately.
+If `provisioning_needed`, do not present the upgrade as complete in any closing summary — repeat the `@ai:install-collection {name}` instruction as the explicit next step. Offer to run it immediately only when there is no upgrade script with an admin half; otherwise tell the admin to finish that first.
 
 ### Step 12: Cleanup
 
@@ -274,9 +284,9 @@ If the deprecated zip fallback was used, delete the staging directory `<project_
 
 The per-org setup-responses file at `/<collection>/setup/collection-setup-responses.md` (and any future per-org state files under `/<collection>/state/`) MUST NOT be overwritten or deleted by this task. They contain answers the org provided during the original `install-collection` setup interview — org-specific data, not collection content. Re-running setup is disruptive and shouldn't be a side effect of upgrading.
 
-### Never call aifs_share / aifs_unshare / aifs_transfer_ownership directly
+### Never call aifs_share / aifs_unshare / aifs_transfer_ownership outside the permission-changes procedure
 
-This task doesn't modify permissions. If a future enhancement requires permission changes (e.g., a collection upgrade needs to grant additional read access on shared collection files), the change MUST go through the `permission-change-helper` skill per `agent-index-core/standards.md`.
+This task doesn't modify permissions. If a future enhancement requires permission changes (e.g., a collection upgrade needs to grant additional read access on shared collection files), the change MUST go through the core permission-changes procedure (`/agent-index-core/internal/permission-changes.md`) per `agent-index-core/standards.md` § "Permission changes: list, confirm, apply, verify".
 
 ### Don't invoke this task from inside another task
 

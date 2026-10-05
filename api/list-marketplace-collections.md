@@ -1,7 +1,7 @@
 ---
 name: list-marketplace-collections
 type: task
-version: 2.1.1
+version: 2.1.2
 collection: agent-index-marketplace
 description: Shows all collections available across the org's subscribed marketplace catalogs, grouped by catalog, with download and install status for each.
 stateful: false
@@ -88,6 +88,7 @@ Format:
 
 > **Marketplace Collections**
 > Catalogs: {display_name} v{directory_version} ({last_updated}) · …
+> {on a channel org (org-config `distribution_channel` set; channels, 2.22.0): "Channel {name} — catalogs read from {source ref}@{short commit}, which may be the channel branch rather than a release."}
 > {for each skipped source: "⚠ {display_name} couldn't be read ({error}) — skipped because it is set to skip when unavailable."}
 >
 > **CX Studio Catalog** · namespace `cx`

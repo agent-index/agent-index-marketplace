@@ -1,5 +1,32 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.22.0] — 2026-10-01 — Collection provisioning through the core permission-changes procedure
+
+**MINOR — requires agent-index-core 3.32.0 (`agent_index_min_version` raised to 3.32.0).** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
+
+### Changed
+- **`install-collection` 2.4.0** — Step 5.5 builds one change list per collection: its `collaborative-acls.json` entries (`source: collaborative_acls`) plus the members' code-dir reader grant (`source: task_spec`). It follows core `internal/permission-changes.md`, so the admin sees the exact table, confirms it, and every change is applied and verified under the admin's own credentials. `member_read_grant` is set from the code-dir row's verified state. No helper binary, no review page, no `binary_not_found` branch.
+- **`upgrade-collection` 1.4.2** — wording updated to the procedure.
+
+### Added
+- **Upgrade-ordering guard (Step 5.5 step 2a).** A collection declares `requires_upgrade_review` (e.g. `["3-to-4"]`) in `collaborative-acls.json`. On an existing install, the admin is asked to confirm each review before collaborative grants are applied, and the answer is recorded in org-config `upgrade_reviews_confirmed`. Otherwise only the code-dir reader grant is applied and `collaborative_acls: "pending"` is recorded. Fresh installs are recorded as confirmed (nothing to expose). The guard is data-driven because upgrade-collection rewrites the installed version before provisioning runs, so a version comparison can't see the upgrade.
+- **Guard bookkeeping:** if the guard withheld the collaborative rows, `collaborative_acls` stays `"pending"`. Every retry message points to *Apply access only*, not reconfigure.
+- **install-collection "Apply access only" path.** For an installed collection, re-run just Step 5.5 against the existing responses, with no setup interview. Used for any pending `member_read_grant` / `collaborative_acls`, and after upgrade-collection.
+- **upgrade-collection 1.4.2** records `upgraded_from`. It tells the admin to finish an upgrade script's admin half *before* provisioning, and offers to run install-collection immediately only when there's no admin half.
+- **upgrade-collection setup 1.0.1** — standard frontmatter and Upgrade Behavior (preflight structural fix). README lists upgrade-collection; ROADMAP version current. Needed because the `grants[]` fix below enables grants that projects 3→4 and client-intelligence 1→2 say must wait for a gated-content review. The key bug had been enforcing that rule by accident.
+
+### Fixed
+- **`collaborative-acls.json` entries under `grants[]` were never provisioned.** Step 5.5 read only `acls[]`, but projects ≤ 4.3.0 and client-intelligence ≤ 2.3.0 declare `grants[]` (with `purpose` instead of `rationale`), so their entries were treated as empty. Step 5.5 now accepts `grants[]` / `purpose` as a legacy alias. Those collections switch to `acls[]` in their next releases.
+
+### Added — distribution channels
+- Review fixes: upgrade-collection compares commits on a channel org **and** when a collection's `source_ref` is still a `channel/` ref (leaving a channel). check-updates names the action per kind (publish for core/marketplace, upgrade-collection for collections, edit-org adapter update for the adapter). Stale tag-only wording updated.
+Org admins can now test unreleased code. An org with `distribution_channel` set in org-config (core 3.32.0) runs the `channel/<name>` branch head of each repo, and falls back to the release tag where that branch doesn't exist. Design record: distribution channels technical design, §4.
+- **`check-updates` 2.13.0** — on a channel org the admin path refreshes the clones with the channel and compares each repo's commit in `clone-resolution.json` with `/shared/updates/published-state.json`. It reports "channel {name}: N repo(s) have newer commits" and never reports "downgrade" or "local ahead". Steps 2 and 2.5 (public directory on GitHub `main`) are skipped there. The report header names the channel, and `--check-upstream` advice is no longer offered to channel orgs (core refuses it there). The member path is unchanged.
+- **`download-collection` 2.8.0**, **`upgrade-collection` 1.5.0** — every clone manifest carries `channel`. `installed_collections[]` records `source_ref` and `source_commit` from the clone-resolution record, and still writes `source_tag` when the ref is a tag. On a channel org, upgrade-collection's "nothing to do" means the same commit as the installed `source_commit`, not `target ≤ installed`, and `--to` is refused. The staged-version-equals-catalog check stays. Update-log entries carry `ref`/`commit` so members can apply a same-version candidate.
+- **`install-collection` 2.4.0** — never rewrites the source record.
+- **`internal/resolve-marketplaces.md`** — catalogs are read from clones on their resolved ref. Each source carries `ref`/`ref_type`/`commit` for display, and on a channel org callers note that the catalog may be on the channel branch.
+- **`list-marketplace-collections` 2.1.2** — the header names the channel and the catalog ref.
+
 ## [2.21.0] — 2026-09-27 — Multi-marketplace: unique names instead of mandatory prefixes
 
 **MINOR — requires agent-index-core 3.31.0.** Implements the relaxed collision rules in core `standards.md` 2.6.0.

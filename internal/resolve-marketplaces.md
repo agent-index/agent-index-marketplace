@@ -1,6 +1,6 @@
 # Internal subroutine: resolve-marketplaces
 
-**Added in:** agent-index-marketplace 2.20.0 (requires agent-index-core 3.30.0). **Collision rules revised in 2.21.0** (core 3.31.0): unique names across catalogs; namespaces are optional reservations.
+**Added in:** agent-index-marketplace 2.20.0 (requires agent-index-core 3.30.0). **Collision rules revised in 2.21.0** (core 3.31.0): unique names across catalogs; namespaces are optional reservations.  **Resolved refs added in 2.22.0** (channels, core 3.32.0).
 **Normative model:** `agent-index-core/standards.md` § "Marketplaces: catalogs, subscriptions, provenance"
 **Used by:** `list-marketplace-collections`, `download-collection`, `check-updates`, `upgrade-collection`. (`list-org-collections` groups by provenance from `org-config.json` alone and reads no catalog.)
 
@@ -39,6 +39,7 @@ Partition into **enabled** and **disabled**. Disabled subscriptions are never re
 2. Resolve `<install_root>/<ref>/marketplace-directory.json` and read it with the native Read tool.
 3. **Verify the trust anchor without running git:** read `<install_root>/<ref>/.git/config` as a file and extract `[remote "origin"] url`. Normalise both it and `trust_anchor.git_url` (strip a trailing `.git` and trailing `/`, lowercase the host). Mismatch → unavailable, error `trust_anchor_mismatch`, naming both URLs. **Never run `git` from the sandbox for this** — agent-side git over the mount is limited to read-only `log`/`show`/`status`/`diff` (CONTRIBUTING), and a file read needs none of it.
 4. If the clone directory or file is missing → unavailable, error `source_missing`. The remedy is the committed `lib/clone/clone-repos` script run natively by the admin; say so. **Never author a clone script.**
+5. **Resolved ref (channels, 2.22.0).** The catalog is read from the clone's working tree, which is on whatever ref the clone driver resolved — a release tag, the default-branch head, or `channel/<name>` on a channel org. Read `<install_root>/.agent-index/clone-resolution.json` (`clone-resolution/1`) and take the entry whose key is the clone directory name (`<ref>`'s last segment). Carry its `ref`, `ref_type` and `commit` on the source for display. A missing record or entry is not an error: set them to `null`. Never run git to find them.
 
 **`url`:** permitted only for the synthesised legacy subscription of a not-yet-migrated org. Fetch via the SHA-pinned Distribution fetch protocol (`standards.md`), emit the standards.md deprecation warning. **Never `WebSearch`** for a catalog, a version, or a release (`adminupstreamstale`).
 
@@ -89,7 +90,8 @@ For each unavailable catalog:
   "synthesised": false,
   "sources": [
     { "id": "agent-index-public", "display_name": "Agent Index Marketplace", "namespace": null,
-      "state": "ok", "directory_version": "1.26.0", "last_updated": "2026-09-23", "entry_count": 10 },
+      "state": "ok", "directory_version": "1.26.0", "last_updated": "2026-09-23", "entry_count": 10,
+      "ref": "channel/dev-1", "ref_type": "channel", "commit": "9f8e7d6…" },
     { "id": "…", "display_name": "…", "namespace": "cx", "state": "skipped", "error": "source_missing" }
   ],
   "disabled": [ { "id": "…", "display_name": "…" } ],
@@ -101,7 +103,7 @@ For each unavailable catalog:
 }
 ```
 
-`entries` is the merged list across every `ok` catalog, each entry tagged with the catalog it came from; an entry involved in a duplicate-name conflict also carries `conflict: [other catalog ids]`. Intruding entries are not in `entries` — only in `conflicts[]`. `display_name` is the subscription's local label (falls back to the catalog's).
+`entries` is the merged list across every `ok` catalog, each entry tagged with the catalog it came from; an entry involved in a duplicate-name conflict also carries `conflict: [other catalog ids]`. Intruding entries are not in `entries` — only in `conflicts[]`. `display_name` is the subscription's local label (falls back to the catalog's). `ref`/`ref_type`/`commit` (2.22.0) are display-only and `null` for `url` sources or when no clone-resolution record exists. On a channel org (org-config `distribution_channel` set), callers that show a catalog header add: "catalog read from {ref}@{short commit} — on a channel org this may be the channel branch, not a release."
 
 ---
 
