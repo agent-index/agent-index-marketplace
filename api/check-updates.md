@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.13.0
+version: 2.13.1
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -108,7 +108,7 @@ Runs only when `distribution_channel` is set. On a channel org the org runs unre
 
 **Lightweight mode** (session-start): do not ask for a clone refresh. On the admin path, use the existing clone-resolution.json if present; otherwise skip the channel comparison silently.
 
-**On completion:** Proceed to Step 2.6.
+**On completion:** Proceed to Step 3.
 
 ---
 
@@ -120,7 +120,7 @@ The 3.1.1 + flow uses `infrastructure_directory_url` to discover both core and m
 
 > **Admin-upstream rule for a self-distributing org (M1, `adminupstreamstale`, marketplace 2.15.0 / C.1.3.4 — HIGH).** This task answers two distinct questions (see CLAUDE.md "check for updates" disambiguation): the **member-apply** question ("am I current with what the org published?" = installed vs `/shared/dist/manifest.json`) and the **admin-upstream** question ("is the org current with the newest release?"). For a **self-distributing org** — one whose admin publishes releases from local **git clones** rather than consuming them from the public directory — the admin-upstream comparison MUST be a **git check in the admin's clones**: refresh via the clone scripts (`git fetch --tags`), then compare the clone working-tree `collection.json` `version` / highest tag against the org's installed versions. The public `infrastructure_directory_url` is the member-facing broadcast and is **by design behind** such an org's internal versions, so comparing against it produces a false "org is ahead / nothing to do." **NEVER use `WebSearch` to discover versions, releases, or directory contents for any path of this task** — it returns a cached, stale snapshot (the `adminupstreamstale` root cause). Directory/version GETs, when an org genuinely consumes the public directory, go through the SHA-pinned Distribution fetch protocol below; a clone-publishing org uses git in the clones instead.
 
-> **Distribution fetch protocol (required for ALL directory/version fetches in this task — Steps 2, 2.5, 2.6; closes bug `20260601-8d20ea22-2`; replaces the 2.9.0 cache-buster rule in marketplace 2.11.0):** bare branch-form `raw.githubusercontent.com` URLs are served from a stale fetch-layer cache, and `?t=` cache-busters are **stripped on the raw redirect**, so they do not defeat it. For every directory/version GET, use the SHA-pinned protocol (standards.md § "Distribution fetch protocol"): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}` (cache the SHA per repo for this session — a full run needs ≤4 resolutions), then fetch `raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. If SHA resolution fails: fall back to `cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (label `source: jsdelivr-fallback`, advisory), then the bare URL (label `source: unpinned`). **A fallback-sourced result is never sufficient to report "✓ up to date"** — surface the degraded confidence instead. Apply to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
+> **Distribution fetch protocol (required for ALL directory/version fetches in this task — Steps 2 and 2.5; closes bug `20260601-8d20ea22-2`; replaces the 2.9.0 cache-buster rule in marketplace 2.11.0):** bare branch-form `raw.githubusercontent.com` URLs are served from a stale fetch-layer cache, and `?t=` cache-busters are **stripped on the raw redirect**, so they do not defeat it. For every directory/version GET, use the SHA-pinned protocol (standards.md § "Distribution fetch protocol"): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}` (cache the SHA per repo for this session — a full run needs ≤4 resolutions), then fetch `raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. If SHA resolution fails: fall back to `cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (label `source: jsdelivr-fallback`, advisory), then the bare URL (label `source: unpinned`). **A fallback-sourced result is never sufficient to report "✓ up to date"** — surface the degraded confidence instead. Apply to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
 
 **Primary path (3.1.1+):**
 
@@ -237,35 +237,8 @@ This step is added in v2.1.1 to fix the adapter-drift portion of bug `20260501-8
 5. If `mcp-servers/filesystem/adapter.json` is missing locally, record `unable to check (no installed adapter manifest)` and proceed.
 6. If the directory fetch fails (network, 404, etc.), record `unable to check (network or 404)` and proceed.
 
-**On success:** Proceed to Step 2.6.
-**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 2.6 without aborting the workflow.
-
----
-
-### Step 2.6: Check Registered Binary Tools (added in core 3.4.0)
-
-The org may declare native binary tools via `org-config.json` → `binaries{}`. Each entry pins a target version and policy. The `infrastructure-directory.json` published by the central agent-index registry declares the latest `current_version` and `min_required_version` for each binary. This step compares the org-pinned version against (a) the directory's published current/min and (b) the locally-installed version, and surfaces the deltas.
-
-For each entry in `infrastructure-directory.json` → `binaries[]`:
-
-1. Look up the binary in `org-config.json` → `binaries{}`. If not present, record:
-   `available — not pinned (admin can run @ai:pin-binary-version <name>)`. Do not flag as needing action.
-2. If present, resolve the **target version** per the org's `policy`:
-   - `pinned` → `org_entry.version` exactly.
-   - `min` → max of `org_entry.version` and the locally-installed version.
-   - `latest` → directory's `current_version`.
-3. Validate the target against the directory's `min_required_version`. If `target < min_required_version`, record:
-   `↑ admin must update pin — org pin <version> below required floor <min>`.
-4. Read the locally-installed version from the path declared by the directory's `version_file` (e.g. `mcp-servers/permission-helper-go/version.txt`). If file missing, record `not installed`.
-5. Compare local to target:
-   - `local == target` → `up to date`.
-   - `local != target` (or not installed) → `↑ install/update available (local <local> → target <target>)`. Surface this whether the change is upgrade or downgrade — both are intentional under "pinned" policy.
-6. If the directory has no `platforms[]` entry matching the host's `os`/`arch`, surface:
-   `↑ no published binary for <os>/<arch> — ask admin to upload`.
-
-If the directory fetch fails (network, 404), record `unable to check (network or 404)` for binaries and proceed.
-
 **On success:** Proceed to Step 3.
+**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 3 without aborting the workflow.
 
 ---
 

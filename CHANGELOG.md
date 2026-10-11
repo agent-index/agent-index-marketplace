@@ -4,6 +4,9 @@
 
 **MINOR — requires agent-index-core 3.32.0 (`agent_index_min_version` raised to 3.32.0).** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
 
+### Changed — pairs with core 4.0.0
+- **`check-updates` 2.13.1** no longer checks registered binary tools (old Step 2.6). Core 4.0.0 removed the permission helper, the only binary in the registry.
+
 ### Changed
 - **`install-collection` 2.4.0** — Step 5.5 builds one change list per collection: its `collaborative-acls.json` entries (`source: collaborative_acls`) plus the members' code-dir reader grant (`source: task_spec`). It follows core `internal/permission-changes.md`, so the admin sees the exact table, confirms it, and every change is applied and verified under the admin's own credentials. `member_read_grant` is set from the code-dir row's verified state. No helper binary, no review page, no `binary_not_found` branch.
 - **`upgrade-collection` 1.4.2** — wording updated to the procedure.
