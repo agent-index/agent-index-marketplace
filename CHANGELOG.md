@@ -1,5 +1,12 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.22.1] — <RELEASE_DATE> — Fixes from the dev-1 live test (Dev Two)
+
+### Fixed
+- **`upgrade-collection` 1.6.0 writes update-log entries with `operations[]` (`flatupdateentry`, finding 27).** 1.5.0 put the operation fields at entry level; apply-updates walks `operations[]`, so it synced nothing and members never received a same-version (channel) collection change. Core apply-updates 4.1.0 also reads the old flat entries.
+- **`install-collection` 2.5.0 refuses collections that still use the removed permission helper** on core 4.0.0+, using the minimum-version table in core `upgrade/3-to-4.md` (`gatedownloaded`, finding 26).
+- **`install-collection` 2.5.0: Reconfigure replaces configuration, never data** — seed files (manifests, indexes, keys) are written only when absent (`reconfigresetsdata`, finding 30: a bug-reports reconfigure reset `bug-manifest.json` and `auth-key.txt`).
+
 ## [2.22.0] — 2026-10-01 — Collection provisioning through the core permission-changes procedure
 
 **MINOR — requires agent-index-core 3.32.0 (`agent_index_min_version` raised to 3.32.0).** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).

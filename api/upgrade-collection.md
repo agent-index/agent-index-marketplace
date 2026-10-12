@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.5.0
+version: 1.6.0
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -218,23 +218,29 @@ Write back via `aifs_write("/org-config.json", ...)`.
 
 ### Step 10: Write CHANGELOG Entry
 
-Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array:
+Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array, in the same shape publish-updates writes — the operation goes inside `operations[]` (`flatupdateentry`, Dev Two live test finding 27: 1.5.0 wrote the operation fields at entry level, and apply-updates, which walks `operations[]`, synced nothing, so members never received a same-version channel change):
 
 ```json
 {
   "id": "<next sequential id>",
-  "type": "collection-update",
-  "collection": "<name>",
-  "from_version": "<installed_version>",
-  "target_version": "<target_version>",
-  "has_migration": <true if migration script present>,
-  "ref": "<source_ref>",
-  "commit": "<source_commit>",
-  "published_date": "<today ISO>",
+  "published": "<ISO timestamp>",
   "published_by": "<admin's member_hash>",
-  "summary": "<read collection.json's description field, or fall back to default>"
+  "summary": "<read collection.json's description field, or fall back to default>",
+  "operations": [
+    {
+      "type": "collection-update",
+      "collection": "<name>",
+      "from_version": "<installed_version>",
+      "target_version": "<target_version>",
+      "has_migration": <true if migration script present>,
+      "ref": "<source_ref>",
+      "commit": "<source_commit>"
+    }
+  ]
 }
 ```
+
+Read the entry back and confirm `operations` has exactly one element before updating `latest.json`.
 
 Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler). The `ref`/`commit` fields let apply-updates (core 3.32.0+) apply a same-version channel candidate (channels, 2.22.0).
 

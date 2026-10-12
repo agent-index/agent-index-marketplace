@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.4.0
+version: 2.5.0
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) and the members' code-dir read grant at Step 5.5, through the core permission-changes procedure (the admin confirms the exact changes).
 stateful: true
@@ -43,9 +43,11 @@ Check `org-config.json` for the collection entry.
 
 If not found in org-config at all: surface "'{name}' hasn't been downloaded yet. Say '@ai:download-collection {name}' to download it first." Halt.
 
+**Core 4.0.0 helper gate (`gatedownloaded`, Dev Two live test finding 26).** If the org's core (`org-config.agent_index_version`) is 4.0.0 or later, check the collection against the minimum-version table in `/agent-index-core/upgrade/3-to-4.md` § 1 (read through core's read base: gdrive `id:{core folder_id}/upgrade/3-to-4.md`, OneDrive the path), and, for a collection not in that table, search its `api/` for live calls to the retired helper (the patterns `upgrade/3-to-4.md` § 1 lists). If it's below its minimum or has a live call: surface "'{name}' {version} still uses the permission helper that core 4.0.0 removed. Download {minimum} or later (`@ai:download-collection {name}`), then install." Halt. This applies to Reconfigure and Apply access only as well.
+
 If `status: installed`: offer two paths and require an explicit choice:
 - **Apply access only (2.4.0)** — re-run only Step 5.5 against the existing setup responses. This is the path for anything pending: `member_read_grant: "pending"`, `collaborative_acls: "pending"`, or provisioning flagged by `upgrade-collection`. The setup interview is not repeated. Go straight to Step 5.5.
-- **Reconfigure** — "'{display_name}' is already installed. Reconfiguring re-runs setup and overwrites the existing configuration. Proceed?" Continue only on explicit confirmation.
+- **Reconfigure** — "'{display_name}' is already installed. Reconfiguring re-runs setup and overwrites the existing configuration. Proceed?" Continue only on explicit confirmation. Reconfiguring replaces **configuration** (setup responses), never **data**: seed files a collection's setup creates (manifests, indexes, keys, logs) are written only when absent, and an existing one is kept as is (`reconfigresetsdata`, finding 30). If the collection's own setup says to write a seed file unconditionally, still skip it when the file exists, and say which files were kept.
 
 Record whether `status` was `installed` at the start of this run (`existing_install: true|false`); Step 5.5 step 2a needs it.
 
