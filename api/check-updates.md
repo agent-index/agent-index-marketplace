@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.12.1
+version: 2.13.1
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false
@@ -72,23 +72,55 @@ If `mcp-servers/filesystem/adapter.json` is not readable, Step 2.5 will record `
 Read `org-config.json` from the remote filesystem via `aifs_read`. Extract:
 - `installed_collections` — the list of collections the org has installed, with their versions and repo URLs
 - `agent_index_version` — the core version recorded at org setup time
+- `distribution_channel` — (channels, 2.22.0) `null`/absent for an org that distributes release tags, or a channel name (e.g. `dev-1`) for an org distributing the `channel/<name>` branch heads. If org-config is unreadable, fall back to the display-only mirror in `agent-index.json` → `distribution_channel`. An org with a non-null value is a **channel org**; see Step 1.5.
 
 If `agent-index.json` is not readable: surface error and halt. This file is required.
 If `org-config.json` is not readable: proceed with infrastructure and adapter checks only; skip collection checks.
 
 **Dist integrity gate (added in marketplace 2.14.0 — closes `shagateunimplemented`).** When this task reads any artifact from `/shared/dist/` (the manifest itself, or a directory file it pulls from `/shared/dist/directories/` for version comparison), it MUST **actually compute and verify the SHA-256** of each directory artifact against the `manifest.json` entry — pre-C.1.3 this task read the manifest for versions but never hashed the artifacts, so the integrity property the backend-distribution model promises did not exist (the member-apply session confirmed no SHA was ever computed). Use the **Canonical SHA-256 recipe** in `agent-index-core/templates/backend-distribution.md` (`aifs_stat` for `size` → `aifs_read` to file → `head -c <size>` → `sha256sum`); do **not** hash shell-captured `aifs_read` stdout (the `manifestsha` trailing-newline bug). On mismatch, **escalate to a top-of-report BLOCKER** — "backend distribution artifact `{path}` fails SHA verification against the manifest (computed `{actual}`, manifest says `{expected}`); the org's `/shared/dist/` is corrupt or was published with a non-canonical hash — ask your admin to re-publish via `@ai:publish-updates`." Do not report "✓ up to date" when a dist artifact fails verification. (Version comparison alone is not sufficient; a stale/torn artifact can advertise the right version with wrong bytes.)
 
-**On success:** Proceed to Step 2.
+**On success:** Proceed to Step 1.5 on a channel org, otherwise Step 2.
+
+---
+
+### Step 1.5: Channel Orgs — Compare Commits on the Channel (channels, 2.22.0)
+
+Runs only when `distribution_channel` is set. On a channel org the org runs unreleased `channel/<name>` heads, so versions can stay the same between candidates and can be lower than the public directory. Version comparison against GitHub `main` is meaningless here. **Skip Steps 2 and 2.5 entirely on a channel org** (for every member). Step 2.5's contract check 4a still runs: it reads only the local `adapter.json` and the installed collections' `collection.json`. Then continue at Step 2.6.
+
+**Admin path:**
+
+1. **Refresh the clones on the channel.** Emit the clone manifests through the `clone-manifest-emitter` subroutine (`agent-index-core/templates/clone-script-generator.md`), passing `"channel": "<distribution_channel>"` in each: one `infra` manifest, and one `collections` manifest for every `installed_collections[]` entry with a `repo_url` (skip sideloaded entries). Surface the committed `lib/clone/clone-repos` invocation and wait for the admin to say it ran. **Never author a clone script and never run git from the sandbox.** If the admin declines the refresh, continue with the existing record and label the report "clones as of {resolved_at}".
+2. **Read `<install_root>/.agent-index/clone-resolution.json`** (`clone-resolution/1`). If it is missing, record every repo as `unable to check (no clone-resolution record — refresh the clones)`. If its `channel` differs from the org's `distribution_channel`, add a NOTE: "Clones were resolved for channel {x}, but the org is on {y}. Refresh the clones."
+3. **Read `/shared/updates/published-state.json`.** From core 3.32.0 it records `commit` and `ref` for each repo.
+4. **Compare each repo's commit** in clone-resolution (infra repos including the filesystem adapter, plus installed collections) with the commit published-state records for that repo:
+   - commits differ → `↑ newer commit on channel` (`{published short sha} → {clone short sha}`)
+   - commits equal → `✓ published`
+   - published-state has no `commit` for the repo (last published before core 3.32.0) → `no published commit — run '@ai:publish-updates' to baseline`
+   - the repo's `ref_type` is `tag` or `branch_head` (no `channel/<name>` branch in that repo) → still compare commits, and show the ref so the admin sees the fallback.
+
+   **Never report "downgrade", "local ahead", or "ahead of directory" on a channel org.** Versions are shown for information only. A lower or equal version with a different commit is still a newer candidate.
+5. Summarise as: "channel {name}: {N} repo(s) have newer commits". **Name the action per kind** (core 3.32.0 compares what's on the backend):
+   - core / marketplace → `@ai:publish-updates`;
+   - a collection → `@ai:upgrade-collection {name}` first (it uploads that commit; publish-updates then detects it via `source_commit`);
+   - the adapter → `@ai:edit-org` → *Update adapter bundle*, then publish.
+
+**Member path:** unchanged. Members compare against `/shared/dist/manifest.json` (Step 1 dist gate, Step 3 member branch, Step 4). Members never read clone-resolution.json.
+
+**Lightweight mode** (session-start): do not ask for a clone refresh. On the admin path, use the existing clone-resolution.json if present; otherwise skip the channel comparison silently.
+
+**On completion:** Proceed to Step 3.
 
 ---
 
 ### Step 2: Check Infrastructure Versions
 
+*(Skipped on a channel org — see Step 1.5.)*
+
 The 3.1.1 + flow uses `infrastructure_directory_url` to discover both core and marketplace versions in a single fetch. Prior to 3.1.1, two separate canonical URLs were consulted; those remain as fallbacks.
 
 > **Admin-upstream rule for a self-distributing org (M1, `adminupstreamstale`, marketplace 2.15.0 / C.1.3.4 — HIGH).** This task answers two distinct questions (see CLAUDE.md "check for updates" disambiguation): the **member-apply** question ("am I current with what the org published?" = installed vs `/shared/dist/manifest.json`) and the **admin-upstream** question ("is the org current with the newest release?"). For a **self-distributing org** — one whose admin publishes releases from local **git clones** rather than consuming them from the public directory — the admin-upstream comparison MUST be a **git check in the admin's clones**: refresh via the clone scripts (`git fetch --tags`), then compare the clone working-tree `collection.json` `version` / highest tag against the org's installed versions. The public `infrastructure_directory_url` is the member-facing broadcast and is **by design behind** such an org's internal versions, so comparing against it produces a false "org is ahead / nothing to do." **NEVER use `WebSearch` to discover versions, releases, or directory contents for any path of this task** — it returns a cached, stale snapshot (the `adminupstreamstale` root cause). Directory/version GETs, when an org genuinely consumes the public directory, go through the SHA-pinned Distribution fetch protocol below; a clone-publishing org uses git in the clones instead.
 
-> **Distribution fetch protocol (required for ALL directory/version fetches in this task — Steps 2, 2.5, 2.6; closes bug `20260601-8d20ea22-2`; replaces the 2.9.0 cache-buster rule in marketplace 2.11.0):** bare branch-form `raw.githubusercontent.com` URLs are served from a stale fetch-layer cache, and `?t=` cache-busters are **stripped on the raw redirect**, so they do not defeat it. For every directory/version GET, use the SHA-pinned protocol (standards.md § "Distribution fetch protocol"): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}` (cache the SHA per repo for this session — a full run needs ≤4 resolutions), then fetch `raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. If SHA resolution fails: fall back to `cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (label `source: jsdelivr-fallback`, advisory), then the bare URL (label `source: unpinned`). **A fallback-sourced result is never sufficient to report "✓ up to date"** — surface the degraded confidence instead. Apply to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
+> **Distribution fetch protocol (required for ALL directory/version fetches in this task — Steps 2 and 2.5; closes bug `20260601-8d20ea22-2`; replaces the 2.9.0 cache-buster rule in marketplace 2.11.0):** bare branch-form `raw.githubusercontent.com` URLs are served from a stale fetch-layer cache, and `?t=` cache-busters are **stripped on the raw redirect**, so they do not defeat it. For every directory/version GET, use the SHA-pinned protocol (standards.md § "Distribution fetch protocol"): resolve the repo's branch head SHA via `api.github.com/repos/{owner}/{repo}/commits/{branch}` (cache the SHA per repo for this session — a full run needs ≤4 resolutions), then fetch `raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. If SHA resolution fails: fall back to `cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (label `source: jsdelivr-fallback`, advisory), then the bare URL (label `source: unpinned`). **A fallback-sourced result is never sufficient to report "✓ up to date"** — surface the degraded confidence instead. Apply to `infrastructure_directory_url`, `filesystem_adapter_directory_url`, and any fallback `*_version_url`.
 
 **Primary path (3.1.1+):**
 
@@ -134,6 +166,8 @@ If a fallback URL also fails, record that piece as `unable to check (network or 
 ---
 
 ### Step 2.5: Check Filesystem Adapter Version
+
+*(Skipped on a channel org except check 4a — see Step 1.5. The adapter repo's commit is compared there.)*
 
 The bundled filesystem adapter (gdrive, onedrive, s3, etc.) carries its own version and contract level. This step compares the installed bundle against the published `filesystem-adapter-directory.json` so admins can see when a newer adapter — including bug-fix releases — is available. Mirrors the Step 2 pattern for `infrastructure_directory_url`.
 
@@ -191,6 +225,8 @@ This step is added in v2.1.1 to fix the adapter-drift portion of bug `20260501-8
         > Your installed adapter is at contract `{installed_contract}`. Installed collection(s) require contract `{required_contract}`: {comma-separated list of collections driving the max}.
         >
         > Capabilities in those collections will fail at runtime until the adapter is upgraded. Run `@ai:publish-updates --check-upstream` (admin) to fetch a contract-`{required_contract}+` adapter bundle. The current contract gap is a hard prerequisite — not just a nice-to-have upgrade.
+
+        On a channel org, replace the remedy sentence with: "Stage a contract-`{required_contract}+` adapter on channel `{name}`, refresh the clones, then run `@ai:publish-updates`." Core 3.32.0 refuses `--check-upstream` on a channel org (channels, 2.22.0).
       - **`installed_contract < entry.contract_version` BUT `installed_contract >= required_contract`** — contract upgrade is available upstream but no installed collection depends on it yet. Keep the existing SECONDARY NOTE on the adapter row from step 4 (informational opportunity); do NOT escalate to a blocker.
    5. Record the result in the lightweight-mode `contract_blockers[]` field so session-start can surface a one-line warning at next session entry: `[{ "required_contract": "...", "installed_contract": "...", "driving_collections": [...] }]` if blocked, empty otherwise.
 
@@ -201,35 +237,8 @@ This step is added in v2.1.1 to fix the adapter-drift portion of bug `20260501-8
 5. If `mcp-servers/filesystem/adapter.json` is missing locally, record `unable to check (no installed adapter manifest)` and proceed.
 6. If the directory fetch fails (network, 404, etc.), record `unable to check (network or 404)` and proceed.
 
-**On success:** Proceed to Step 2.6.
-**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 2.6 without aborting the workflow.
-
----
-
-### Step 2.6: Check Registered Binary Tools (added in core 3.4.0)
-
-The org may declare native binary tools via `org-config.json` → `binaries{}`. Each entry pins a target version and policy. The `infrastructure-directory.json` published by the central agent-index registry declares the latest `current_version` and `min_required_version` for each binary. This step compares the org-pinned version against (a) the directory's published current/min and (b) the locally-installed version, and surfaces the deltas.
-
-For each entry in `infrastructure-directory.json` → `binaries[]`:
-
-1. Look up the binary in `org-config.json` → `binaries{}`. If not present, record:
-   `available — not pinned (admin can run @ai:pin-binary-version <name>)`. Do not flag as needing action.
-2. If present, resolve the **target version** per the org's `policy`:
-   - `pinned` → `org_entry.version` exactly.
-   - `min` → max of `org_entry.version` and the locally-installed version.
-   - `latest` → directory's `current_version`.
-3. Validate the target against the directory's `min_required_version`. If `target < min_required_version`, record:
-   `↑ admin must update pin — org pin <version> below required floor <min>`.
-4. Read the locally-installed version from the path declared by the directory's `version_file` (e.g. `mcp-servers/permission-helper-go/version.txt`). If file missing, record `not installed`.
-5. Compare local to target:
-   - `local == target` → `up to date`.
-   - `local != target` (or not installed) → `↑ install/update available (local <local> → target <target>)`. Surface this whether the change is upgrade or downgrade — both are intentional under "pinned" policy.
-6. If the directory has no `platforms[]` entry matching the host's `os`/`arch`, surface:
-   `↑ no published binary for <os>/<arch> — ask admin to upload`.
-
-If the directory fetch fails (network, 404), record `unable to check (network or 404)` for binaries and proceed.
-
 **On success:** Proceed to Step 3.
+**On directory fetch failure:** Queue notice that adapter check couldn't complete; proceed to Step 3 without aborting the workflow.
 
 ---
 
@@ -252,6 +261,8 @@ For an ok origin catalog:
 - entry `current_version` > installed `version`: `update available` (installed → latest), and name the catalog when more than one is subscribed
 - equal: `up to date`
 - entry absent: `no longer listed in {display_name}`
+
+**On a channel org (channels, 2.22.0):** the catalog clone may be on the channel branch, so its `current_version` is shown for information only. The status of each collection with a repo comes from the Step 1.5 commit comparison. A catalog version at or below the installed one is never reported as a downgrade.
 
 If the resolver returned `error` (a catalog failed and is not set to skip): record every collection whose origin is an affected catalog as `unable to check (catalog error: {code})`, list the errors in the report, and continue with Step 4. **Never report "✓ up to date" for a collection whose origin catalog could not be read.**
 
@@ -345,8 +356,16 @@ Compile all results into a prioritized report.
 
 **Full mode (default):**
 
-> **Agent-Index Update Report**
+> **Agent-Index Update Report**{on a channel org: " — channel {name} (unreleased)"}
 > Checked: {timestamp}
+>
+> {on a channel org, admin path — replaces the Infrastructure and Filesystem Adapter tables (channels, 2.22.0):}
+> **Channel {name}: {N} repo(s) have newer commits** {if the refresh was declined: "(clones as of {resolved_at})"}
+> | Repo | Ref | Version | Published commit | Clone commit | Status |
+> |---|---|---|---|---|---|
+> | agent-index-core | channel/{name} | 3.32.0 | 1a2b3c4 | 9f8e7d6 | ↑ newer commit on channel |
+> | agent-index-filesystem-gdrive | v2.14.0 (release tag) | 2.14.0 | 5d6e7f8 | 5d6e7f8 | ✓ published |
+> | projects | channel/{name} | 4.4.0 | — | 0a1b2c3 | no published commit |
 >
 > **Infrastructure**
 > | Component | Installed | Latest | Status |
@@ -393,9 +412,10 @@ Compile all results into a prioritized report.
 > **What to do:**
 > {if update instructions are pending (last_applied_update behind latest.json)}: "Your admin has published update instructions. Say '@ai:update' to apply them — this will handle infrastructure, collection, and capability updates in one step."
 > {if no update instructions pending but updates detected}:
-> {if infrastructure updates (core/marketplace) AND member is admin}: "Infrastructure has upstream updates. Say '@ai:publish-updates --check-upstream' to fetch the new versions from GitHub, sync to remote, regenerate the bootstrap zip if needed, and broadcast to members — all in one step." (Replaces the pre-3.5.0 manual `git pull → @ai:edit-org → @ai:publish-updates` ritual; the new flag in publish-updates Step 0a does the fetch automatically.)
+> {on a channel org, admin path, if any repo has a newer commit — use this line instead of the infrastructure, adapter and collection lines below (channels, 2.22.0)}: "Channel {name} has {N} repo(s) with newer commits. Run `@ai:upgrade-collection {name}` for each listed collection and the adapter update if listed, then say '@ai:publish-updates' to publish them to members." Never suggest `--check-upstream` on a channel org: core 3.32.0 refuses it there.
+> {if infrastructure updates (core/marketplace) AND member is admin AND the org has no `distribution_channel`}: "Infrastructure has upstream updates. Say '@ai:publish-updates --check-upstream' to fetch the new versions from GitHub, sync to remote, regenerate the bootstrap zip if needed, and broadcast to members — all in one step." (Replaces the pre-3.5.0 manual `git pull → @ai:edit-org → @ai:publish-updates` ritual; the new flag in publish-updates Step 0a does the fetch automatically.)
 > {if infrastructure updates AND member is NOT admin}: "Infrastructure updates require an org admin. Contact your org admin to publish the upstream updates."
-> {if adapter update available AND member is admin}: "Filesystem adapter has an update available. Say '@ai:publish-updates --check-upstream' — the new flow detects adapter changes via the prerequisite-detection step and regenerates the bootstrap zip automatically. (The pre-3.5.0 path was '@ai:edit-org → Update Adapter Bundle, then @ai:publish-updates' — still works as a fallback if you want to inspect the bundle before publishing.)"
+> {if adapter update available AND member is admin AND the org has no `distribution_channel`}: "Filesystem adapter has an update available. Say '@ai:publish-updates --check-upstream' — the new flow detects adapter changes via the prerequisite-detection step and regenerates the bootstrap zip automatically. (The pre-3.5.0 path was '@ai:edit-org → Update Adapter Bundle, then @ai:publish-updates' — still works as a fallback if you want to inspect the bundle before publishing.)"
 > {if adapter update available AND member is NOT admin}: "Contact your org admin to refresh the filesystem adapter bundle."
 > {if collection updates}: "{if member is admin: Say '@ai:marketplace' to upgrade collections, then '@ai:publish-updates' to publish instructions for members. | if not admin: Contact your org admin to upgrade the {collection} collection and publish update instructions.}"
 > {if capability upgrades}: "Say '@ai:update' if update instructions are available, or '@ai:setup' to upgrade your installed capabilities manually."
@@ -430,6 +450,8 @@ Return a structured result (not displayed) containing:
 }
 ```
 
+On a channel org (channels, 2.22.0) the result also carries `"channel": "{name}"` and `"channel_updates": [{"repo": "agent-index-core", "ref": "channel/{name}", "published_commit": "…", "clone_commit": "…"}]` (admin path, from the existing clone-resolution record only). `infrastructure_updates` and `adapter_updates` are then `[]`.
+
 `adapter_updates` is `[]` when the adapter is up to date or when the directory could not be reached. The `contract_installed` field may be null on pre-2.0 adapters that didn't declare a contract version.
 
 This structured result is consumed by session-start to generate update-available notices without displaying the full report.
@@ -450,7 +472,9 @@ When running in lightweight mode (triggered by session-start), be silent. Return
 
 ### Version Comparison
 
-Use semantic version comparison throughout. `1.2.0` > `1.1.9` > `1.1.0` > `1.0.0`. Compare MAJOR first, then MINOR, then PATCH. Do not use string comparison.
+On a channel org, the admin path compares commits, not versions (Step 1.5).
+
+Otherwise, use semantic version comparison throughout. `1.2.0` > `1.1.9` > `1.1.0` > `1.0.0`. Compare MAJOR first, then MINOR, then PATCH. Do not use string comparison.
 
 When an update involves a MAJOR version change, note this in the report:
 > "↑ **major update** available (1.0.0 → 2.0.0) — may require migration"
@@ -459,7 +483,7 @@ MAJOR updates have breaking changes and may require running upgrade scripts. MIN
 
 ### Constraints
 
-Never modify any file. This task is strictly read-only.
+Never modify any file. This task is strictly read-only. The one exception is the clone manifest the channel admin path (Step 1.5) writes through the `clone-manifest-emitter` subroutine; the clone refresh itself is run by the admin.
 
 Never trigger an upgrade. Only report and recommend.
 

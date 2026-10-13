@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.7.1
+version: 2.8.0
 collection: agent-index-marketplace
 description: Downloads a collection from one of the org's subscribed marketplace catalogs to the org's remote filesystem, recording which catalog it came from. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
 stateful: false
@@ -91,18 +91,18 @@ This is informational only at download time. Aliases are assigned during `instal
 
 Determine the local source clone:
 
-1. If the admin already has a tag-pinned local clone of `{collection-name}` (collections selected at create-org are cloned during bring-up), use it. Confirm it's checked out to the org's adopted tag.
-2. **If there is no local clone** (e.g. the collection was not selected at create-org — this is the common `download-collection` case), do **not** fall to the web. Emit a clone **manifest** via the `clone-script-generator` subroutine and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script (which reads it) to clone `{collection-name}` at the org's adopted version, then use that clone. **DO NOT author a bespoke `clone-{collection-name}.ps1`/`.sh` (or copy an existing clone-*.ps1) -- that is the `clonescripttagassumption` regression; the ONLY sanctioned path is the data manifest + the COMMITTED `lib/clone/clone-repos`. If a bespoke clone script would be written, STOP and emit the manifest instead.**
+1. If the admin already has a tag-pinned local clone of `{collection-name}` (collections selected at create-org are cloned during bring-up), use it. Confirm it's checked out to the org's adopted tag — or, on a channel org, to the ref recorded for it in `<install_root>/.agent-index/clone-resolution.json` (channels, 2.22.0).
+2. **If there is no local clone** (e.g. the collection was not selected at create-org — this is the common `download-collection` case), do **not** fall to the web. Emit a clone **manifest** via the `clone-script-generator` subroutine and have the admin run the committed `agent-index-core/lib/clone/clone-repos` script (which reads it) to clone `{collection-name}` at the org's adopted version, then use that clone. **The manifest always carries `"channel"`** = org-config `distribution_channel` (`null` when unset), so a channel org gets the `channel/<name>` head when the repo has one (channels, 2.22.0). **DO NOT author a bespoke `clone-{collection-name}.ps1`/`.sh` (or copy an existing clone-*.ps1) -- that is the `clonescripttagassumption` regression; the ONLY sanctioned path is the data manifest + the COMMITTED `lib/clone/clone-repos`. If a bespoke clone script would be written, STOP and emit the manifest instead.**
 
-Record `install_method: git-clone` and the resolved source tag.
+Record `install_method: git-clone` and the resolved source. Read the repo's entry in `<install_root>/.agent-index/clone-resolution.json` (`clone-resolution/1`): its `ref` becomes `source_ref`, its `commit` becomes `source_commit`, and when `ref_type` is `tag` the same ref is also written as `source_tag` (channels, 2.22.0).
 
-The `zip_url`/web path survives **only** as the deprecated fallback for a not-yet-migrated org; if it is ever used, emit the standards.md deprecation warning. It is never the default and never used when a clone can be produced.
+The `zip_url`/web path survives **only** as the deprecated fallback for a not-yet-migrated org; if it is ever used, emit the standards.md deprecation warning. It is never the default and never used when a clone can be produced. **Never on a channel org** (org-config `distribution_channel` set): a ZIP is the default branch and would silently revert the org; refresh the clone with the channel instead (core 3.32.0).
 
 ---
 
 ### Step 4: Download
 
-1. **Release C — source the collection from the admin's LOCAL CLONE, not a GitHub download.** Adding a collection is a `git clone`/`pull` via the committed `agent-index-core/lib/clone/clone-repos` script driven by a `clone-script-generator` manifest (the admin runs the committed script). Read the collection files from the local `{collection-name}` clone (checked out to the org's adopted tag). **Do not fetch `zip_url` from GitHub** — that path survives only as the deprecated fallback for a not-yet-migrated org (standards.md § "Distribution: backend-first"; emit the deprecation warning if used).
+1. **Release C — source the collection from the admin's LOCAL CLONE, not a GitHub download.** Adding a collection is a `git clone`/`pull` via the committed `agent-index-core/lib/clone/clone-repos` script driven by a `clone-script-generator` manifest (the admin runs the committed script). Read the collection files from the local `{collection-name}` clone (checked out to the org's adopted tag, or the channel ref on a channel org). **Do not fetch `zip_url` from GitHub** — that path survives only as the deprecated fallback for a not-yet-migrated org (standards.md § "Distribution: backend-first"; emit the deprecation warning if used).
 2. Upload all collection files from the local clone to `/{collection-name}/` on the remote filesystem **via `aifs_write_batch`, in fixed conservative sub-batches of 10 files per call** (`bulkuploadserial` / `instcollnobatch`, gdrive adapter 2.9.0+ / onedrive 2.6.0+). The batch op removes the per-file process-spawn overhead of a naive `aifs_write` loop, but the TOTAL work inside a single `aifs_write_batch` call still runs within one ~45-second per-invocation window — so an unbounded batch (the whole tree, or "two big chunks") still times out. Partition the in-scope file list into fixed sub-batches of **10 files (the default; state this number explicitly to the admin)** and issue **one `aifs_write_batch` call per sub-batch** (each call is one process). For each sub-batch, build an `entries` array of `{path, content_file}` (prefer the `content_file` form over inline `content` for every file — inline is capped by the shell argument length, ~128KB) and pass it to `aifs_write_batch`; it ensures the unique parent folders once per call (duplicate-parent-safe) and runs each file's durable read-back verify inside that one process. **After each sub-batch call, confirm the sub-batch landed** — rely on the batch op's own read-back, or do a per-sub-batch `aifs_exists` check on that group's files — before starting the next sub-batch. **This upload is resume-safe and idempotent: a re-run skips files already present on the remote, so a partial upload (some sub-batches landed, then a timeout) can be safely re-run and it picks up where it left off.** **Do not upload the whole tree, or "two big chunks," in one batch call.**
 
    **This supersedes the C.1.4.3 "single big batch" behavior** (which built ONE `entries` array over all files and only chunked "if very large"). Motivation (`instcollnobatch`): a 66-file client-intelligence collection uploaded as the whole tree / two large chunks STILL overran the ~45-second window — only ~20 files landed before timeout — and completed only after being manually re-chunked to ~11 files per batch. The fixed small sub-batch removes the need for that manual re-chunking.
@@ -145,7 +145,9 @@ Add a new entry to `installed_collections` in `org-config.json`:
   "folder_id": "{Drive ID from aifs_stat('/{name}') — omit if stat failed}",
   "downloaded_date": "{today YYYY-MM-DD}",
   "repo_url": "{repo_url}",
-  "source_tag": "{the tag the local clone was checked out to}",
+  "source_ref": "{clone-resolution ref: a tag, channel/<name>, or the default branch}",
+  "source_commit": "{clone-resolution commit}",
+  "source_tag": "{the tag — written only when ref_type is tag}",
   "install_method": "git-clone",
   "status": "downloaded",
   "marketplace_id": "{the marketplace_id of the catalog entry selected in Step 1}"

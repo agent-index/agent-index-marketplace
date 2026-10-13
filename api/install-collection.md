@@ -1,9 +1,9 @@
 ---
 name: install-collection
 type: task
-version: 2.3.0
+version: 2.5.0
 collection: agent-index-marketplace
-description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) via permission-change-helper at Step 5.5.
+description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) and the members' code-dir read grant at Step 5.5, through the core permission-changes procedure (the admin confirms the exact changes).
 stateful: true
 produces_artifacts: false
 produces_shared_artifacts: false
@@ -43,7 +43,13 @@ Check `org-config.json` for the collection entry.
 
 If not found in org-config at all: surface "'{name}' hasn't been downloaded yet. Say '@ai:download-collection {name}' to download it first." Halt.
 
-If `status: installed`: surface "'{display_name}' is already installed. To reconfigure it, you'll need to re-run setup — this will overwrite the existing configuration. Would you like to proceed?" Require explicit confirmation before continuing.
+**Core 4.0.0 helper gate (`gatedownloaded`, Dev Two live test finding 26).** If the org's core (`org-config.agent_index_version`) is 4.0.0 or later, check the collection against the minimum-version table in `/agent-index-core/upgrade/3-to-4.md` § 1 (read through core's read base: gdrive `id:{core folder_id}/upgrade/3-to-4.md`, OneDrive the path), and, for a collection not in that table, search its `api/` for live calls to the retired helper (the patterns `upgrade/3-to-4.md` § 1 lists). If it's below its minimum or has a live call: surface "'{name}' {version} still uses the permission helper that core 4.0.0 removed. Download {minimum} or later (`@ai:download-collection {name}`), then install." Halt. This applies to Reconfigure and Apply access only as well.
+
+If `status: installed`: offer two paths and require an explicit choice:
+- **Apply access only (2.4.0)** — re-run only Step 5.5 against the existing setup responses. This is the path for anything pending: `member_read_grant: "pending"`, `collaborative_acls: "pending"`, or provisioning flagged by `upgrade-collection`. The setup interview is not repeated. Go straight to Step 5.5.
+- **Reconfigure** — "'{display_name}' is already installed. Reconfiguring re-runs setup and overwrites the existing configuration. Proceed?" Continue only on explicit confirmation. Reconfiguring replaces **configuration** (setup responses), never **data**: seed files a collection's setup creates (manifests, indexes, keys, logs) are written only when absent, and an existing one is kept as is (`reconfigresetsdata`, finding 30). If the collection's own setup says to write a seed file unconditionally, still skip it when the file exists, and say which files were kept.
+
+Record whether `status` was `installed` at the start of this run (`existing_install: true|false`); Step 5.5 step 2a needs it.
 
 Verify the collection directory exists on the remote filesystem via `aifs_exists` and that `collection.json` is readable via `aifs_read`. If not: surface "'{name}' is recorded as downloaded but the directory isn't accessible on the remote filesystem. The files may have been moved or deleted. Try downloading it again with '@ai:download-collection {name}'." Halt.
 
@@ -60,7 +66,7 @@ If it exists and `status` in org-config is `downloaded` (setup started but not c
 - Continue: load existing responses and resume from the first unanswered parameter
 - Start over: proceed fresh, overwriting existing responses
 
-If responses exist and `status` is `installed` (reconfiguration flow): always start fresh — confirmed in Step 1.
+If responses exist and `status` is `installed` (reconfiguration flow): always start fresh — confirmed in Step 1. (The *apply access only* path skips this step.)
 
 ---
 
@@ -117,44 +123,64 @@ On confirmation:
 1. Write `collection-setup-responses.md` to `/{collection-name}/setup/` on the remote filesystem via `aifs_write` with `setup_status: complete`
 2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`, add `installed_date: {today}`
    - **Provenance (2.3.0 — multi-marketplace):** never change an existing `marketplace_id`. If the entry has **no `marketplace_id` key** — the sideload path, where the collection's files were placed at `/{name}/` and registered `status: downloaded` without `download-collection` — write `"marketplace_id": null` and tell the admin: "Recorded as sideloaded (no origin catalog). If it belongs to a catalog you subscribe to, set that in '@ai:edit-org' → Manage marketplaces." `install-collection` never reads a catalog and never infers provenance from one.
+   - **Source record (channels, 2.22.0):** never change `source_ref`, `source_commit` or `source_tag` here. `download-collection` and `upgrade-collection` write them from the clone-resolution record. A sideloaded entry has none, and none is invented.
 3. Write `current-state.md` to task state directory recording completion
 
-**Guardrail — never mark a collection installed without writing its responses file (bug `20260615-8d20ea22-setupresp`).** Step 1 is MANDATORY and is NOT skipped by an "accept defaults / don't ask me questions" shortcut: a defaults install still writes `collection-setup-responses.md` with `setup_status: complete` (and the resolved default/org-mandated values) — an empty-but-complete file when the collection has no org-level parameters. Without it, `org-setup` hard-blocks **every member** from installing any capability from this collection. If you're installing several collections at once "with defaults," loop this task per collection (each writing its responses) — do **not** bulk-upload + register collections without their responses files. After Step 1, verify it landed: `aifs_read("/{collection-name}/setup/collection-setup-responses.md")` must succeed with `setup_status: complete` before proceeding to Step 2.
+**Guardrail — never mark a collection installed without writing its responses file (bug `20260615-8d20ea22-setupresp`).** Step 5 item 1 (writing the responses file) is MANDATORY and is NOT skipped by an "accept defaults / don't ask me questions" shortcut: a defaults install still writes `collection-setup-responses.md` with `setup_status: complete` (and the resolved default/org-mandated values) — an empty-but-complete file when the collection has no org-level parameters. Without it, `org-setup` hard-blocks **every member** from installing any capability from this collection. If you're installing several collections at once "with defaults," loop this task per collection (each writing its responses) — do **not** bulk-upload + register collections without their responses files. After Step 1, verify it landed: `aifs_read("/{collection-name}/setup/collection-setup-responses.md")` must succeed with `setup_status: complete` before proceeding to Step 2.
 
 Then run Step 5.5 (collaborative-ACL provisioning) before the final confirmation below.
 
 Confirm to admin:
 > "'{display_name}' is now installed and configured. Members can install its skills and tasks by saying '@ai:setup' in their Cowork session."
 > {if alias overrides were set}: "Alias resolutions have been recorded — members will receive the correct aliases when they install."
-> {if collaborative ACLs were provisioned}: "Collaborative access provisioned: {recipients} now have {roles} on {paths}."
+> {if any collaborative row ended `applied` or `skipped_noop`}: "Collaborative access provisioned: {recipients} now have {roles} on {paths}" (only those rows).
+> {if `collaborative_acls` is `"pending"`}: "Shared-folder access is NOT yet provisioned for {paths} — {reason}. Run '@ai:install-collection {name}' → *Apply access only* when ready."
 > {if external dependencies}: "Reminder: this collection requires access to {external systems}. Make sure members have the necessary credentials before they try to use it."
 
 ---
 
 ### Step 5.5: Provision Collaborative ACLs
 
-Some collections need members to write into shared collaborative folders (e.g., bug-reports' `bugs/`, projects' shared project tree). Members are otherwise reader-only on `/shared`. A collection declares the grants it needs in a `collaborative-acls.json` file at its root; this step provisions them. Permission changes are **never** applied with `aifs_share` directly — they go through the `permission-change-helper` skill, which the admin reviews and Accepts (per standards.md § "Permission-Modifying Operations" and § "Collaborative Folder ACLs").
+Some collections need members to write into shared collaborative folders (e.g., bug-reports' `bugs/`, projects' shared project tree). Members are otherwise reader-only on `/shared`. A collection declares the grants it needs in a `collaborative-acls.json` file at its root; this step provisions them. Permission changes go only through the core permission-changes procedure (`/agent-index-core/internal/permission-changes.md`): the admin sees the exact changes, confirms them, and they're applied and verified under the admin's own credentials (standards.md § "Permission changes: list, confirm, apply, verify" and § "Collaborative Folder ACLs").
 
 1. **Check for the declaration.** `aifs_exists("/{collection-name}/collaborative-acls.json")`. If absent: there are no collaborative `/shared` folders to provision — but do NOT skip the step (2.10.1): the unconditional collection code-dir reader grant + folder_id capture described at the end of this step STILL run for every installed collection. Treat `acls[]` as empty and proceed to those.
-2. **Read & resolve.** `aifs_read` it; parse `acls[]`. Resolve `{param}` placeholders from the just-written `collection-setup-responses.md` (e.g., `{bug_log_path}`) and from `org-config.json` (`{all_members_group}` ← `remote_filesystem.connection.all_members_group`; `{domain}` if used). If any referenced placeholder cannot be resolved, surface a clear blocker, **skip provisioning** (do not guess a recipient or path), and note it in the confirmation so the admin can fix and re-run.
-3. **Capture current state & filter no-ops.** For each acl entry, `aifs_get_permissions(path)`. Drop entries already satisfied:
-   - `inherit: true` grant → drop if `recipient` already has ≥ `role` on `path` (direct or via the same group).
-   - `inherit: false` + `restrict: true` → drop if the inherited grant being removed is already absent.
-   If nothing remains: surface "Collaborative access already provisioned (no changes needed)." and proceed.
-4. **Compose one spec.** Build a single `permission-change-helper` spec (`version: "1.0"`, or `"1.1"` if any entry uses `inherit`) whose `operations[]` are the remaining entries mapped to `{op:"share", resource, recipient, role[, inherit]}`, each with its `before` populated from step 3. **Build this spec with the committed `build-permission-spec` CLI** (see `permission-change-helper` Step 2.5): emit the ops-array as data and run the CLI -- it enforces the op name, email/UPN recipient form, required role, and the canonical `<project_dir>/outputs/` path, and prints the `spec_path`/`link_path` to use. Do not hand-author the spec JSON. (The CLI passes `inherit`/`restrict` through.)
-5. **Invoke `permission-change-helper`.** The admin reviews the single batched page and clicks Accept; the apply runs under the admin's own OAuth token. (Requires the admin to hold organizer/owner on the target folders — required anyway for any `inherit:false` op, and the helper binary must be `permission-helper-go ≥ 0.3.0` for `inherit:false`.)
-6. **Branch on the returned outcome:**
-   - `applied` (or `partial_failure` with the critical grants applied): the helper has already verified post-state. Record the provisioned grants for the confirmation message.
-   - `rejected` / `page_closed` / `timed_out`: surface "Collaborative access was NOT provisioned — members will not be able to write to {paths} until this is done. Re-run '@ai:install-collection {collection-name}' (reconfigure) to retry." Do **not** roll back the installation.
-   - `binary_not_found`: direct the admin to '@ai:update' (install/upgrade the helper binary), then retry this step.
-7. Proceed to the confirmation message.
+2. **Read & resolve.** `aifs_read` it; parse `acls[]`.
+   - **Legacy alias (2.4.0):** if `acls` is absent but `grants` is present, use `grants[]`, and read each entry's `purpose` as its `rationale`. projects ≤ 4.3.0 and client-intelligence ≤ 2.3.0 shipped with `grants[]`, which earlier versions of this step silently treated as empty.
+   - Resolve `{param}` placeholders from the just-written `collection-setup-responses.md` (e.g., `{bug_log_path}`) and from `org-config.json` (`{all_members_group}` ← `remote_filesystem.connection.all_members_group`; `{domain}` if used).
+   - If any referenced placeholder cannot be resolved, surface a clear blocker, **skip provisioning** (do not guess a recipient or path), and note it in the confirmation so the admin can fix and re-run.
+2a. **Upgrade-ordering guard (2.4.0).** Some collections must not have their collaborative grants applied until an upgrade script's admin half has run: projects 3→4 (gated-idea review) and client-intelligence 1→2 (gated-instance review). Before 2.4.0 this was kept only by accident, because those files used `grants[]`, which this step ignored. The guard is driven by declared data, not by version arithmetic: `upgrade-collection` rewrites `installed_collections[].version` before this step runs, so a version comparison can't see the upgrade.
+
+   - **Declared reviews:** read `requires_upgrade_review` from `collaborative-acls.json` (a list of upgrade-script names such as `["3-to-4"]`; absent = none).
+   - **Already confirmed:** org-config `installed_collections[{name}].upgrade_reviews_confirmed` (a list; absent = empty).
+   - **Fresh install** (`existing_install: false` from Step 1): there is no pre-existing content for the grants to expose. Add every declared review to `upgrade_reviews_confirmed` and continue.
+   - **Existing install, every declared review already confirmed:** continue.
+   - **Existing install, any declared review not confirmed:** ask for each one: *"{display_name} requires the admin half of `upgrade/{review}.md` to be finished before its shared-folder grants are applied (it reviews content these grants would expose). Is that done?"*
+     - **Yes** → add it to `upgrade_reviews_confirmed` and continue.
+     - **Anything else** → leave every `collaborative_acls` row out of the change list, keep the code-dir reader row, set `installed_collections[{name}].collaborative_acls: "pending"`, and say: *"I've left the shared-folder grants out. Finish the upgrade script's admin half, then run '@ai:install-collection {collection-name}' → Apply access only."*
+
+   Never infer that a review is done from file contents. Write the `upgrade_reviews_confirmed` and `collaborative_acls` changes in the same revision-aware org-config write as `member_read_grant` (below). If this step withheld the collaborative rows, `collaborative_acls` stays `"pending"` (never `"granted"`, even though no collaborative row was in the table). Otherwise: when every collaborative row ends `applied` or `skipped_noop`, set `collaborative_acls: "granted"`; when any is unsatisfied, set it to `"pending"`.
+3. **Build the change list.** One change per entry: `{op:"share", resource: path, resource_label: path, is_folder: true, recipient, role, inherit (if present), reason: rationale, source: "collaborative_acls"}`. A `restrict: true` entry is the same `share` with `inherit: false`; the procedure treats it as high-impact and confirms it individually. Add the code-dir reader change described below to the **same** list, so the admin sees one table for this collection.
+4. **Apply.** Follow `/agent-index-core/internal/permission-changes.md` with that list:
+   - `calling_task: "install-collection"`
+   - `purpose: "Give members the access {display_name} needs"`
+   - `confirmer: "admin"`
+
+   The procedure reads current access and skips anything already in effect. If nothing remains, it reports "No permission changes needed".
+5. **Act on the result:**
+   - **Every collaborative row `applied` or `skipped_noop`:** record the provisioned grants for the confirmation message.
+   - **Any collaborative row not satisfied** (declined, failed, not verified): surface "Collaborative access was NOT fully provisioned — members will not be able to write to {paths} until this is done. Run '@ai:install-collection {collection-name}' → Apply access only to retry," with the procedure's `summary_lines`. Do **not** roll back the installation.
+6. Proceed to the code-dir handling below, then the confirmation message.
 
 **Collection code-dir reader grant + folder_id (added in 2.10.1 — Option B id-anchored access; closes cr01/cr02).** Non-admin members are not Drive members; they can read a collection's code dir at `/{name}/` only if it is directly shared with them, and they address it by stored `folder_id` (they cannot resolve `/{name}` by name — bug 20260606-…-db13). So Step 5.5 ALSO does the following, folded into the same flow above:
    - **Capture folder_id:** if `org-config.json` `installed_collections[{name}].folder_id` is absent, `aifs_stat("/{name}")` → write the resolved Drive ID into that entry (revision-aware). (download-collection captures it too; this covers the install-only and reconfigure paths.)
-   - **Grant all@ reader on the collection code dir:** include a `share` op (recipient `{all_members_group}`, role `reader`, resource `id:{folder_id}` if captured, else `/{name}`) in the SAME spec composed in step 4 — one batched Accept covers both the `/shared` collaborative writers AND the code-dir reader. Subject to the same step-3 no-op filter (skip if `all@` already holds reader). **Without this grant, members cannot sync the collection's capabilities** — this is the brand-book 2026-06-08 failure (cr01). A collection with no `collaborative-acls.json` still gets THIS grant: the code-dir reader is unconditional for every installed collection, independent of whether the collection declares collaborative `/shared` folders.
-   - **Verify the grant landed (hard step, C.1.5.0 `collreadgrantmissing`).** After the helper outcome, `aifs_get_permissions("id:{folder_id}")` and confirm `{all_members_group}` holds `reader` on the code dir. If it does NOT (the grant Accept was `rejected`/`timed_out`, or was filtered as a no-op in error): record `installed_collections[{name}].member_read_grant: "pending"` in `org-config.json` (revision-aware) and **hard-surface**: "Members cannot read {collection-name} until the all-members reader grant on its code dir is Accepted -- re-run '@ai:install-collection {collection-name}' (reconfigure), or it will be auto-healed on the next '@ai:publish-updates' (Step 6e, which now reconciles collection code-dir grants)." On confirmed reader, set `member_read_grant: "granted"`. Do NOT report the collection as fully installed-and-readable while it is `pending`. This closes the client-intelligence gap where a collection was marked installed but the all-members reader grant was never actually present.
+   - **Grant all@ reader on the collection code dir:** include the change `{op:"share", resource: "id:{folder_id}" (if captured, else "/{name}"), resource_label: "{display_name} code folder", is_folder: true, recipient: "{all_members_group}", role: "reader", reason: "Members need read to sync this collection's capabilities", source: "task_spec"}` in the SAME list built in step 3. One table and one confirmation cover both the `/shared` collaborative writers AND the code-dir reader. The procedure skips it if `all@` already holds reader. **Without this grant, members cannot sync the collection's capabilities** — this is the brand-book 2026-06-08 failure (cr01). A collection with no `collaborative-acls.json` still gets THIS grant: the code-dir reader is unconditional for every installed collection, independent of whether the collection declares collaborative `/shared` folders.
+   - **Record the result (hard step, C.1.5.0 `collreadgrantmissing`).** The procedure has already re-read the backend.
+     - Code-dir row `applied` or `skipped_noop` → set `installed_collections[{name}].member_read_grant: "granted"` in `org-config.json` (revision-aware).
+     - Any other state → set `member_read_grant: "pending"` and **hard-surface**: "Members cannot read {collection-name} until the all-members reader grant on its code dir is applied — run '@ai:install-collection {collection-name}' → Apply access only, or it will be offered again on the next '@ai:publish-updates' (Step 6e)."
 
-This step is the **only** place install-collection touches permissions, and only via `permission-change-helper`. It is idempotent (step 3 filter) and safe to re-run for backfill on already-installed orgs.
+     Do NOT report the collection as fully installed-and-readable while it is `pending`. This closes the client-intelligence gap where a collection was marked installed but the all-members reader grant was never actually present.
+
+This step is the **only** place install-collection touches permissions, and only through the permission-changes procedure. It is idempotent (the procedure skips what's already in effect) and safe to re-run for backfill on already-installed orgs.
 
 ### Step 5.7: Register Capability Providers (added in 2.10.0, requires core 3.10.0)
 

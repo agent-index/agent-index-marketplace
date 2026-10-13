@@ -1,7 +1,7 @@
 # Agent-Index Marketplace — Roadmap
 
-Current version: 2.11.2
-Last updated: 2026-04-14
+Current version: 2.22.0
+Last updated: 2026-10-02
 
 ---
 
