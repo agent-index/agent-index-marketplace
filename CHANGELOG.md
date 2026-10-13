@@ -1,6 +1,6 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
-## [2.22.1] — <RELEASE_DATE> — Fixes from the dev-1 live test (Dev Two)
+## [2.22.1] — 2026-10-13 — Fixes from the dev-1 live test (Dev Two)
 
 ### Fixed
 - **`upgrade-collection` 1.6.0 writes update-log entries with `operations[]` (`flatupdateentry`, finding 27).** 1.5.0 put the operation fields at entry level; apply-updates walks `operations[]`, so it synced nothing and members never received a same-version (channel) collection change. Core apply-updates 4.1.0 also reads the old flat entries.
@@ -444,6 +444,7 @@ After this release lands, marketplace collections have a coherent admin upgrade 
 - `marketplace-directory.json` â€” bundled directory with initial projects collection entry
 - `collection-setup.md` â€” org admin setup for cache TTL configuration
 - Setup templates and manifests for all six tasks
+
 
 
 
