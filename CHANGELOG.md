@@ -7,6 +7,9 @@
 - **`install-collection` 2.5.0 refuses collections that still use the removed permission helper** on core 4.0.0+, using the minimum-version table in core `upgrade/3-to-4.md` (`gatedownloaded`, finding 26).
 - **`install-collection` 2.5.0: Reconfigure replaces configuration, never data** — seed files (manifests, indexes, keys) are written only when absent (`reconfigresetsdata`, finding 30: a bug-reports reconfigure reset `bug-manifest.json` and `auth-key.txt`).
 
+### License
+- **Licensed under AGPL-3.0-only with the Agent Index Collection Exception 1.0** (`AGPL-3.0-only WITH LicenseRef-AgentIndex-Collection-Exception-1.0`): the platform is open; collections and storage adapters built on it are their authors' to license (`COLLECTION-EXCEPTION.md`). Earlier releases keep the license they were released with.
+
 ## [2.22.0] — 2026-10-01 — Collection provisioning through the core permission-changes procedure
 
 **MINOR — requires agent-index-core 3.32.0 (`agent_index_min_version` raised to 3.32.0).** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
