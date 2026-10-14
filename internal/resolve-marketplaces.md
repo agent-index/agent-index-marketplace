@@ -1,7 +1,7 @@
 # Internal subroutine: resolve-marketplaces
 
 **Added in:** agent-index-marketplace 2.20.0 (requires agent-index-core 3.30.0). **Collision rules revised in 2.21.0** (core 3.31.0): unique names across catalogs; namespaces are optional reservations.  **Resolved refs added in 2.22.0** (channels, core 3.32.0).
-**Normative model:** `agent-index-core/standards.md` § "Marketplaces: catalogs, subscriptions, provenance"
+**Normative model:** `agent-index-core/admin-distribution.md` § "Marketplaces: catalogs, subscriptions, provenance (normative — core 3.30.0; collision rules revised in 3.31.0)"
 **Used by:** `list-marketplace-collections`, `download-collection`, `check-updates`, `upgrade-collection`. (`list-org-collections` groups by provenance from `org-config.json` alone and reads no catalog.)
 
 This is the **only** place a marketplace task obtains catalog entries. Callers follow these steps and consume the result; they do not read a `marketplace-directory.json` themselves, and they **never** read `/shared/marketplace-cache/` (decommissioned — no writer since marketplace 2.17.0 `mktcatalogwebfetch`).
@@ -23,7 +23,7 @@ If the running member's `member_hash` is not in `org-config.json` → `admins[]`
 Read `org-config.json` via its id anchor (`aifs_read("id:{org_config_id}")`, id from local `agent-index.json` → `remote_filesystem.connection.org_config_id`).
 
 - If `marketplaces[]` is present: use it.
-- If absent (pre-3.30.0 org not yet back-filled by `publish-updates` 6g): **synthesise** the single legacy subscription exactly as `standards.md` § "Legacy orgs" defines it — `id: "agent-index-public"`, `enabled: true`, `namespace: null`, `skip_if_unavailable: false`, source `clone` at `agent-index-resource-listings` if `<install_root>/agent-index-resource-listings/marketplace-directory.json` exists, else `url` from `agent-index.json` → `marketplace_directory_url`. Mark the result `synthesised: true`. Do not write it — that is `publish-updates` 6g's job.
+- If absent (pre-3.30.0 org not yet back-filled by `publish-updates` 6g): **synthesise** the single legacy subscription exactly as `agent-index-core/admin-distribution.md` § "Legacy orgs" defines it — `id: "agent-index-public"`, `enabled: true`, `namespace: null`, `skip_if_unavailable: false`, source `clone` at `agent-index-resource-listings` if `<install_root>/agent-index-resource-listings/marketplace-directory.json` exists, else `url` from `agent-index.json` → `marketplace_directory_url`. Mark the result `synthesised: true`. Do not write it — that is `publish-updates` 6g's job.
 
 Partition into **enabled** and **disabled**. Disabled subscriptions are never read, but their ids and display names are returned so callers can label collections whose origin is disabled.
 
@@ -41,7 +41,7 @@ Partition into **enabled** and **disabled**. Disabled subscriptions are never re
 4. If the clone directory or file is missing → unavailable, error `source_missing`. The remedy is the committed `lib/clone/clone-repos` script run natively by the admin; say so. **Never author a clone script.**
 5. **Resolved ref (channels, 2.22.0).** The catalog is read from the clone's working tree, which is on whatever ref the clone driver resolved — a release tag, the default-branch head, or `channel/<name>` on a channel org. Read `<install_root>/.agent-index/clone-resolution.json` (`clone-resolution/1`) and take the entry whose key is the clone directory name (`<ref>`'s last segment). Carry its `ref`, `ref_type` and `commit` on the source for display. A missing record or entry is not an error: set them to `null`. Never run git to find them.
 
-**`url`:** permitted only for the synthesised legacy subscription of a not-yet-migrated org. Fetch via the SHA-pinned Distribution fetch protocol (`standards.md`), emit the standards.md deprecation warning. **Never `WebSearch`** for a catalog, a version, or a release (`adminupstreamstale`).
+**`url`:** permitted only for the synthesised legacy subscription of a not-yet-migrated org. Fetch via the SHA-pinned Distribution fetch protocol (`agent-index-core/admin-distribution.md` § "Distribution fetch protocol (SHA-pinned) — admin-side / deprecated fallback") and emit the deprecation warning (`agent-index-core/admin-distribution.md` § "Distribution: backend-first (Release C — the current model)"). **Never `WebSearch`** for a catalog, a version, or a release (`adminupstreamstale`).
 
 **`backend`:** reserved, not implemented in v1 → unavailable, error `source_kind_unsupported`.
 
@@ -111,7 +111,7 @@ For each unavailable catalog:
 
 Two lookups, used for different purposes:
 
-- **New install** (`download-collection`): match `name` across all `entries`. Exactly one non-conflicted match → use it. A match marked `conflict` → **refuse**: "'{name}' is offered by more than one catalog you subscribe to ({display names}). Resolve it in one of the catalogs, or disable one subscription, before installing." **There is no priority or precedence rule** — never pick one (`standards.md` § "Collisions"). A name found only in `conflicts[]` as an intrusion → refuse, naming the reserving catalog.
+- **New install** (`download-collection`): match `name` across all `entries`. Exactly one non-conflicted match → use it. A match marked `conflict` → **refuse**: "'{name}' is offered by more than one catalog you subscribe to ({display names}). Resolve it in one of the catalogs, or disable one subscription, before installing." **There is no priority or precedence rule** — never pick one (`agent-index-core/admin-distribution.md` § "Collisions"). A name found only in `conflicts[]` as an intrusion → refuse, naming the reserving catalog.
 - **Origin lookup** (`check-updates`, `upgrade-collection`): match `name` **only among entries whose `marketplace_id` equals the installed collection's origin**. A conflict marker on that entry does not block it — the origin is already fixed by provenance, so another catalog's same-named entry cannot redirect an update — but callers surface it as a warning.
 
 No match → the caller reports "not in any subscribed catalog" and, if the name is in `org-config.json` `installed_collections[]` with `marketplace_id: null`, labels it sideloaded.
