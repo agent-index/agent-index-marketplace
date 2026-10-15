@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache
 type: task
-version: 2.5.0
+version: 2.5.1
 collection: agent-index-marketplace
 description: DEPRECATED (2.20.0) — legacy web-fetched marketplace cache for a not-yet-migrated org only. Clone-publishing orgs read catalogs from local clones; this task halts for them.
 stateful: false

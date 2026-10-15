@@ -1,5 +1,15 @@
 ﻿# Agent-Index Marketplace â€” Changelog
 
+## [2.22.2] — <RELEASE_DATE> — OneDrive and post-4.0 fixes
+
+### Fixed (4.0.1 pass — OneDrive and Google Drive live tests)
+- **install-collection 2.5.1 Step 5.5 builds the code-folder row by backend (finding 63):** gdrive `id:{folder_id}`; OneDrive `/{name}`, then `id:{drive_id}:{folder_id}` — never a bare id on OneDrive (it resolves against the admin's own drive). `internal/resolve-marketplaces.md` reads org-config id-first on gdrive and path-first on OneDrive.
+- **upgrade-collection 1.6.1: one update entry may hold one `collection-update` op plus one `provider-register` or `provider-deregister` op (findings 62, 56);** Step 6.7 puts its op in that entry and removes a registration whose type the new version no longer provides.
+- **download-collection 2.8.1 never republishes `/shared/dist/` (finding 74):** only create-org and publish-updates rewrite the manifest; the admin is told the download manifest catches up at the next publish.
+- **Source skip-list (finding 23):** download-collection and upgrade-collection leave out `.git*` (except `.gitkeep`), `.github/`, `.vscode/`, `.idea/`, `.DS_Store`, `node_modules/` and editor temp files, on both the upload and delete sides; `.claude/` is kept.
+- **install-collection Step 5.7 and check-updates 2.13.2 say when a `provides[]` capability type has no definition** instead of skipping it silently (finding 56).
+- Marketplace `*-setup.md` files name the collection-qualified install path (finding 14).
+
 ## [2.22.1] — 2026-10-13 — Fixes from the dev-1 live test (Dev Two)
 
 ### Fixed

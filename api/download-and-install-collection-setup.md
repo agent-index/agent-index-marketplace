@@ -36,7 +36,7 @@ This installs the Download and Install Collection task. Download and install a m
 ## Setup Completion
 
 1. Write all collected parameter values to `setup-responses.md`
-2. Write the installed instance to `/members/{member-id}/tasks/download-and-install-collection/`
+2. Write the installed instance to `members/{member_hash}/installed/agent-index-marketplace/task/download-and-install-collection/`
 3. Write `manifest.json`
 4. Register entry in `member-index.json` with alias `@ai:download-and-install-collection`
 5. Confirm to member: "'Download and Install Collection' is installed. Say '@ai:download-and-install-collection' followed by a collection name to add it to your org."

@@ -20,7 +20,7 @@ If the running member's `member_hash` is not in `org-config.json` → `admins[]`
 
 ## Step 1: Load subscriptions
 
-Read `org-config.json` via its id anchor (`aifs_read("id:{org_config_id}")`, id from local `agent-index.json` → `remote_filesystem.connection.org_config_id`).
+Read `org-config.json` by the backend's addressing rule (finding 63). gdrive: its id anchor first (`aifs_read("id:{org_config_id}")`, id from local `agent-index.json` → `remote_filesystem.connection.org_config_id`), the path `/org-config.json` as the fallback. OneDrive: the path first, the id as the fallback — a bare `id:` there resolves against the caller's own drive and returns `FILE_NOT_FOUND`.
 
 - If `marketplaces[]` is present: use it.
 - If absent (pre-3.30.0 org not yet back-filled by `publish-updates` 6g): **synthesise** the single legacy subscription exactly as `standards.md` § "Legacy orgs" defines it — `id: "agent-index-public"`, `enabled: true`, `namespace: null`, `skip_if_unavailable: false`, source `clone` at `agent-index-resource-listings` if `<install_root>/agent-index-resource-listings/marketplace-directory.json` exists, else `url` from `agent-index.json` → `marketplace_directory_url`. Mark the result `synthesised: true`. Do not write it — that is `publish-updates` 6g's job.

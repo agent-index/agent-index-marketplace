@@ -36,7 +36,7 @@ This installs the Install Collection task. Run org-admin setup for a downloaded 
 ## Setup Completion
 
 1. Write all collected parameter values to `setup-responses.md`
-2. Write the installed instance to `/members/{member-id}/tasks/install-collection/`
+2. Write the installed instance to `members/{member_hash}/installed/agent-index-marketplace/task/install-collection/`
 3. Write `manifest.json`
 4. Register entry in `member-index.json` with alias `@ai:install-collection`
 5. Confirm to member: "'Install Collection' is installed. Say '@ai:install-collection' followed by a collection name to configure it."
