@@ -9,6 +9,9 @@
 - **Source skip-list (finding 23):** download-collection and upgrade-collection leave out `.git*` (except `.gitkeep`), `.github/`, `.vscode/`, `.idea/`, `.DS_Store`, `node_modules/` and editor temp files, on both the upload and delete sides; `.claude/` is kept.
 - **install-collection Step 5.7 and check-updates 2.13.2 say when a `provides[]` capability type has no definition** instead of skipping it silently (finding 56).
 - Marketplace `*-setup.md` files name the collection-qualified install path (finding 14).
+- **Reconfigure keeps the admin's notes** from the old setup-responses file as `- **Note:**` lines (finding 79); `installed_date` is only added when absent (finding 80); resource paths from `*_path` values are normalized (finding 81).
+- **upgrade-collection's read-back waits ~5 s and re-reads once** before declaring a mismatch (finding 78).
+- **check-updates and refresh-marketplace-cache use the commits-LIST endpoint** for head SHAs (bug `20260617-8d20ea22-165359-6715`); **check-updates refreshes by running core's clone-repos, shows which listings ref it read, and warns when that clone is behind its newest tag** (bug `20261010-8d20ea22-183909-7cb0`; `internal/resolve-marketplaces.md` `stale_ref`).
 
 ## [2.22.1] — 2026-10-13 — Fixes from the dev-1 live test (Dev Two)
 

@@ -72,7 +72,7 @@ In manual mode: always proceed to Step 3 regardless of expiry.
 
 Download the marketplace directory from `source_url` **using the Distribution fetch protocol (SHA-pinned) — standards.md § "Distribution fetch protocol"** (replaces the 2.9.0 cache-buster in marketplace 2.11.0; closes bug `20260601-8d20ea22-2`):
 
-1. Resolve the repo's branch head SHA: `GET https://api.github.com/repos/{owner}/{repo}/commits/{branch}` → `.sha` (derive `{owner}/{repo}/{branch}/{path}` from `source_url`).
+1. Resolve the repo's branch head SHA via the commits **LIST** endpoint: `GET https://api.github.com/repos/{owner}/{repo}/commits?sha={branch}&per_page=1&nonce={epoch}` → `[0].sha` (derive `{owner}/{repo}/{branch}/{path}` from `source_url`). **Never use the single-commit form `/commits/{branch}`** — it is served stale, and a stale SHA pins a stale directory (bug `20260617-8d20ea22-165359-6715`).
 2. Fetch `https://raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. Record `source: pinned` + the SHA.
 3. If SHA resolution fails: fetch `https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}` (record `source: jsdelivr-fallback`); if that also fails, fetch the bare `source_url` (record `source: unpinned`).
 

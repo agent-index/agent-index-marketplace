@@ -68,6 +68,8 @@ If it exists and `status` in org-config is `downloaded` (setup started but not c
 
 If responses exist and `status` is `installed` (reconfiguration flow): always start fresh — confirmed in Step 1. (The *apply access only* path skips this step.)
 
+**Keep the admin's notes on Reconfigure (finding 79).** Before starting fresh, read the existing file and collect every line that is not part of the canonical shape (frontmatter, `##`/`###` headings, `- **Value:**` lines): comment lines (`#`, `//`, `<!-- … -->`), `> NOTE`-style lines, inline trailing comments after a value, and free prose. Attach each one to the parameter it belongs to — the block it sits in, or the parameter it names or sits directly above; a note tied to no parameter goes with the nearest following parameter. Step 5 writes them back as `- **Note:** {text}` lines (verbatim, one per note) under that parameter's `- **Value:**` line, so nothing the admin wrote is lost. Existing `- **Note:**` lines are carried the same way. Notes for a parameter the new setup no longer has go on the first parameter block, prefixed `(was on {old_param})`.
+
 ---
 
 ### Step 3: Resolve Alias Collisions
@@ -113,6 +115,7 @@ Present a summary of all configured values:
 > **Setup Summary — {display_name}**
 > {for each parameter}: {parameter name}: {value}
 > {if alias overrides}: Alias resolutions: {list}
+> {if notes were carried from the old file (Step 2)}: Notes kept from your previous setup: {param}: "{note}" (one line each)
 >
 > Ready to complete installation?
 
@@ -120,8 +123,8 @@ Wait for explicit confirmation.
 
 On confirmation:
 
-1. Write `collection-setup-responses.md` to `/{collection-name}/setup/` on the remote filesystem via `aifs_write` with `setup_status: complete`
-2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`, add `installed_date: {today}`
+1. Write `collection-setup-responses.md` to `/{collection-name}/setup/` on the remote filesystem via `aifs_write` with `setup_status: complete`, in the canonical shape (`### {param}` + `- **Value:**`; core `org-setup.md` step 8). On Reconfigure, add the notes collected in Step 2 as `- **Note:** {text}` lines after each parameter's `- **Value:**` line (finding 79). Readers parse only the `- **Value:**` line, so notes never change a value.
+2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`; add `installed_date: {today}` **only when the entry has none** — on Reconfigure keep the original install date (finding 80)
    - **Provenance (2.3.0 — multi-marketplace):** never change an existing `marketplace_id`. If the entry has **no `marketplace_id` key** — the sideload path, where the collection's files were placed at `/{name}/` and registered `status: downloaded` without `download-collection` — write `"marketplace_id": null` and tell the admin: "Recorded as sideloaded (no origin catalog). If it belongs to a catalog you subscribe to, set that in '@ai:edit-org' → Manage marketplaces." `install-collection` never reads a catalog and never infers provenance from one.
    - **Source record (channels, 2.22.0):** never change `source_ref`, `source_commit` or `source_tag` here. `download-collection` and `upgrade-collection` write them from the clone-resolution record. A sideloaded entry has none, and none is invented.
 3. Write `current-state.md` to task state directory recording completion
@@ -147,6 +150,7 @@ Some collections need members to write into shared collaborative folders (e.g., 
 2. **Read & resolve.** `aifs_read` it; parse `acls[]`.
    - **Legacy alias (2.4.0):** if `acls` is absent but `grants` is present, use `grants[]`, and read each entry's `purpose` as its `rationale`. projects ≤ 4.3.0 and client-intelligence ≤ 2.3.0 shipped with `grants[]`, which earlier versions of this step silently treated as empty.
    - Resolve `{param}` placeholders from the just-written `collection-setup-responses.md` (e.g., `{bug_log_path}`) and from `org-config.json` (`{all_members_group}` ← `remote_filesystem.connection.all_members_group`; `{domain}` if used).
+   - **Normalize every resolved path before building rows (finding 81).** A `*_path` value may already end in `/` (e.g. `bug_log_path: /shared/bug-reports/`), so `{bug_log_path}/bugs` would become `/shared/bug-reports//bugs`. After substitution, collapse each run of `/` into one and drop a trailing `/` (keep a lone `/`). Do this for every `resource` and `resource_label`, so the change list, the procedure's access reads and the recorded rows all use the same path. For an `id:` anchor, normalize only the path part after the anchor.
    - If any referenced placeholder cannot be resolved, surface a clear blocker, **skip provisioning** (do not guess a recipient or path), and note it in the confirmation so the admin can fix and re-run.
 2a. **Upgrade-ordering guard (2.4.0).** Some collections must not have their collaborative grants applied until an upgrade script's admin half has run: projects 3→4 (gated-idea review) and client-intelligence 1→2 (gated-instance review). Before 2.4.0 this was kept only by accident, because those files used `grants[]`, which this step ignored. The guard is driven by declared data, not by version arithmetic: `upgrade-collection` rewrites `installed_collections[].version` before this step runs, so a version comparison can't see the upgrade.
 

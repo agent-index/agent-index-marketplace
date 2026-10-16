@@ -253,7 +253,7 @@ Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members 
 
 ### Step 11: Verify and Surface Result
 
-Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
+Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. **Durable read-back (finding 78; standards.md § "Durable read-back after a write"):** a mismatch on the read right after the upload is not yet a mismatch — OneDrive can serve the previous bytes for a few seconds after a write. Wait ~5 s and re-read once; the same applies to any per-file byte/SHA read-back of the Step 8 uploads. Only if the second read still differs is it a mismatch. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
 
 On success surface:
 
@@ -287,7 +287,7 @@ If the deprecated zip fallback was used, delete the staging directory `<project_
 | Zip download fails (deprecated fallback only) | Skip-or-halt prompt. Admin retries. |
 | Zip is corrupt or extract fails (deprecated fallback only) | Halt. Staging dir is left for debugging. |
 | Single `aifs_write` fails partway through Step 8 | Surface error, halt. org-config NOT yet updated (Step 9). Re-running diffs against the partial-upload state and continues from where it left off. |
-| Verification mismatch in Step 11 | Surface warning. Suggest re-run. Org-config has already been updated in Step 9 (since uploads succeeded), so the next run will see no diff if the partial-upload state matches the target — verification confirms cleanly on retry. |
+| Verification mismatch in Step 11 (still different on the ~5 s re-read) | Surface warning. Suggest re-run. Org-config has already been updated in Step 9 (since uploads succeeded), so the next run will see no diff if the partial-upload state matches the target — verification confirms cleanly on retry. |
 
 ## Directives
 

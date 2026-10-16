@@ -40,6 +40,7 @@ Partition into **enabled** and **disabled**. Disabled subscriptions are never re
 3. **Verify the trust anchor without running git:** read `<install_root>/<ref>/.git/config` as a file and extract `[remote "origin"] url`. Normalise both it and `trust_anchor.git_url` (strip a trailing `.git` and trailing `/`, lowercase the host). Mismatch → unavailable, error `trust_anchor_mismatch`, naming both URLs. **Never run `git` from the sandbox for this** — agent-side git over the mount is limited to read-only `log`/`show`/`status`/`diff` (CONTRIBUTING), and a file read needs none of it.
 4. If the clone directory or file is missing → unavailable, error `source_missing`. The remedy is the committed `lib/clone/clone-repos` script run natively by the admin; say so. **Never author a clone script.**
 5. **Resolved ref (channels, 2.22.0).** The catalog is read from the clone's working tree, which is on whatever ref the clone driver resolved — a release tag, the default-branch head, or `channel/<name>` on a channel org. Read `<install_root>/.agent-index/clone-resolution.json` (`clone-resolution/1`) and take the entry whose key is the clone directory name (`<ref>`'s last segment). Carry its `ref`, `ref_type` and `commit` on the source for display. A missing record or entry is not an error: set them to `null`. Never run git to find them.
+6. **Stale checkout check (bug `20261010-8d20ea22-183909-7cb0`).** A `git fetch --tags` alone downloads a new release tag but leaves the working tree on the old one, so the catalog read in item 2 can be a release behind. Find the clone's newest local release tag **by file reads only**: tag names from `<install_root>/<ref>/.git/packed-refs` (lines ending `refs/tags/v…`) plus the file names under `.git/refs/tags/`; take the highest semver `vX.Y.Z`. If `ref_type` is `tag` and that newest tag is higher than `ref`, set `stale_ref: { "ref": "<ref>", "newest_tag": "<tag>" }` on the source. If there is no clone-resolution entry (`ref` null), set `stale_ref: { "ref": null, "newest_tag": "<tag>" }` — the ref the tree is on is unknown. Otherwise (`ref_type` `channel` / `branch_head`, or no tags readable) `stale_ref` is `null`. A stale ref is a **warning, not an error** — the catalog stays usable.
 
 **`url`:** permitted only for the synthesised legacy subscription of a not-yet-migrated org. Fetch via the SHA-pinned Distribution fetch protocol (`standards.md`), emit the standards.md deprecation warning. **Never `WebSearch`** for a catalog, a version, or a release (`adminupstreamstale`).
 
@@ -91,7 +92,7 @@ For each unavailable catalog:
   "sources": [
     { "id": "agent-index-public", "display_name": "Agent Index Marketplace", "namespace": null,
       "state": "ok", "directory_version": "1.26.0", "last_updated": "2026-09-23", "entry_count": 10,
-      "ref": "channel/dev-1", "ref_type": "channel", "commit": "9f8e7d6…" },
+      "ref": "channel/dev-1", "ref_type": "channel", "commit": "9f8e7d6…", "stale_ref": null },
     { "id": "…", "display_name": "…", "namespace": "cx", "state": "skipped", "error": "source_missing" }
   ],
   "disabled": [ { "id": "…", "display_name": "…" } ],
@@ -103,7 +104,7 @@ For each unavailable catalog:
 }
 ```
 
-`entries` is the merged list across every `ok` catalog, each entry tagged with the catalog it came from; an entry involved in a duplicate-name conflict also carries `conflict: [other catalog ids]`. Intruding entries are not in `entries` — only in `conflicts[]`. `display_name` is the subscription's local label (falls back to the catalog's). `ref`/`ref_type`/`commit` (2.22.0) are display-only and `null` for `url` sources or when no clone-resolution record exists. On a channel org (org-config `distribution_channel` set), callers that show a catalog header add: "catalog read from {ref}@{short commit} — on a channel org this may be the channel branch, not a release."
+`entries` is the merged list across every `ok` catalog, each entry tagged with the catalog it came from; an entry involved in a duplicate-name conflict also carries `conflict: [other catalog ids]`. Intruding entries are not in `entries` — only in `conflicts[]`. `display_name` is the subscription's local label (falls back to the catalog's). `ref`/`ref_type`/`commit` (2.22.0) are display-only and `null` for `url` sources or when no clone-resolution record exists. `stale_ref` (Step 2 item 6) is `null` unless the clone's working tree may be behind its newest local tag; callers must surface it (below). On a channel org (org-config `distribution_channel` set), callers that show a catalog header add: "catalog read from {ref}@{short commit} — on a channel org this may be the channel branch, not a release." Every caller that compares versions against a catalog shows the ref it was read from ("catalog {display_name} read from {ref}@{short commit}", or "read from an unrecorded ref" when `ref` is null), and when `stale_ref` is set adds: "⚠ The {display_name} clone is on {ref or 'an unrecorded ref'}, but tag {newest_tag} is already fetched — its catalog may be a release behind. Run the core `lib/clone/clone-repos` script to check out the newest tag, then re-run."
 
 ---
 
@@ -121,7 +122,7 @@ No match → the caller reports "not in any subscribed catalog" and, if the name
 ## Constraints
 
 - Admin-only. Read-only. Writes nothing, anywhere.
-- Never reads `/shared/marketplace-cache/`. Never `WebSearch`. Never runs git. Never authors a clone script.
+- Never reads `/shared/marketplace-cache/`. Never `WebSearch`. Never runs git (the Step 2 ref and tag checks are plain file reads). Never authors a clone script.
 - Never reads a disabled subscription's catalog.
 - Never returns a partial catalog without an explicit `skipped` notice the caller must display.
 
