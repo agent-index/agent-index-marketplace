@@ -261,6 +261,7 @@ On success surface:
 ✓ Upgraded {name} from {installed_version} to {target_version}{on a channel org: " (channel {channel}, {source_ref}@{short source_commit})"}
   Files: {N} uploaded, {M} deleted, {P} preserved
   Members will pick up the upgrade on their next @ai:apply-updates
+  The org's download manifest (/shared/dist/) will list '{name}' {target_version} after your next '@ai:publish-updates'.
 {if migration script: "  Members will see the migration script's instructions during their upgrade."}
 {if provisioning_needed:
 "  ⚠ NOT YET FUNCTIONAL — provisioning pending.
