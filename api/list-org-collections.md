@@ -1,7 +1,7 @@
 ---
 name: list-org-collections
 type: task
-version: 2.1.0
+version: 2.1.1
 collection: agent-index-marketplace
 description: Shows all collections the org has downloaded or created, with install status for each. Does not show marketplace collections that haven't been downloaded.
 stateful: false

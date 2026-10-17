@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.5.0
+version: 2.5.1
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) and the members' code-dir read grant at Step 5.5, through the core permission-changes procedure (the admin confirms the exact changes).
 stateful: true
@@ -68,6 +68,8 @@ If it exists and `status` in org-config is `downloaded` (setup started but not c
 
 If responses exist and `status` is `installed` (reconfiguration flow): always start fresh — confirmed in Step 1. (The *apply access only* path skips this step.)
 
+**Keep the admin's notes on Reconfigure (finding 79).** Before starting fresh, read the existing file and collect every line that is not part of the canonical shape (frontmatter, `##`/`###` headings, `- **Value:**` lines): comment lines (`#`, `//`, `<!-- … -->`), `> NOTE`-style lines, inline trailing comments after a value, and free prose. Attach each one to the parameter it belongs to — the block it sits in, or the parameter it names or sits directly above; a note tied to no parameter goes with the nearest following parameter. Step 5 writes them back as `- **Note:** {text}` lines (verbatim, one per note) under that parameter's `- **Value:**` line, so nothing the admin wrote is lost. Existing `- **Note:**` lines are carried the same way. Notes for a parameter the new setup no longer has go on the first parameter block, prefixed `(was on {old_param})`.
+
 ---
 
 ### Step 3: Resolve Alias Collisions
@@ -113,6 +115,7 @@ Present a summary of all configured values:
 > **Setup Summary — {display_name}**
 > {for each parameter}: {parameter name}: {value}
 > {if alias overrides}: Alias resolutions: {list}
+> {if notes were carried from the old file (Step 2)}: Notes kept from your previous setup: {param}: "{note}" (one line each)
 >
 > Ready to complete installation?
 
@@ -120,8 +123,8 @@ Wait for explicit confirmation.
 
 On confirmation:
 
-1. Write `collection-setup-responses.md` to `/{collection-name}/setup/` on the remote filesystem via `aifs_write` with `setup_status: complete`
-2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`, add `installed_date: {today}`
+1. Write `collection-setup-responses.md` to `/{collection-name}/setup/` on the remote filesystem via `aifs_write` with `setup_status: complete`, in the canonical shape (`### {param}` + `- **Value:**`; core `org-setup.md` step 8). On Reconfigure, add the notes collected in Step 2 as `- **Note:** {text}` lines after each parameter's `- **Value:**` line (finding 79). Readers parse only the `- **Value:**` line, so notes never change a value.
+2. Update `org-config.json` on the remote filesystem via `aifs_write`: set `status: installed`; add `installed_date: {today}` **only when the entry has none** — on Reconfigure keep the original install date (finding 80)
    - **Provenance (2.3.0 — multi-marketplace):** never change an existing `marketplace_id`. If the entry has **no `marketplace_id` key** — the sideload path, where the collection's files were placed at `/{name}/` and registered `status: downloaded` without `download-collection` — write `"marketplace_id": null` and tell the admin: "Recorded as sideloaded (no origin catalog). If it belongs to a catalog you subscribe to, set that in '@ai:edit-org' → Manage marketplaces." `install-collection` never reads a catalog and never infers provenance from one.
    - **Source record (channels, 2.22.0):** never change `source_ref`, `source_commit` or `source_tag` here. `download-collection` and `upgrade-collection` write them from the clone-resolution record. A sideloaded entry has none, and none is invented.
 3. Write `current-state.md` to task state directory recording completion
@@ -147,6 +150,7 @@ Some collections need members to write into shared collaborative folders (e.g., 
 2. **Read & resolve.** `aifs_read` it; parse `acls[]`.
    - **Legacy alias (2.4.0):** if `acls` is absent but `grants` is present, use `grants[]`, and read each entry's `purpose` as its `rationale`. projects ≤ 4.3.0 and client-intelligence ≤ 2.3.0 shipped with `grants[]`, which earlier versions of this step silently treated as empty.
    - Resolve `{param}` placeholders from the just-written `collection-setup-responses.md` (e.g., `{bug_log_path}`) and from `org-config.json` (`{all_members_group}` ← `remote_filesystem.connection.all_members_group`; `{domain}` if used).
+   - **Normalize every resolved path before building rows (finding 81).** A `*_path` value may already end in `/` (e.g. `bug_log_path: /shared/bug-reports/`), so `{bug_log_path}/bugs` would become `/shared/bug-reports//bugs`. After substitution, collapse each run of `/` into one and drop a trailing `/` (keep a lone `/`). Do this for every `resource` and `resource_label`, so the change list, the procedure's access reads and the recorded rows all use the same path. For an `id:` anchor, normalize only the path part after the anchor.
    - If any referenced placeholder cannot be resolved, surface a clear blocker, **skip provisioning** (do not guess a recipient or path), and note it in the confirmation so the admin can fix and re-run.
 2a. **Upgrade-ordering guard (2.4.0).** Some collections must not have their collaborative grants applied until an upgrade script's admin half has run: projects 3→4 (gated-idea review) and client-intelligence 1→2 (gated-instance review). Before 2.4.0 this was kept only by accident, because those files used `grants[]`, which this step ignored. The guard is driven by declared data, not by version arithmetic: `upgrade-collection` rewrites `installed_collections[].version` before this step runs, so a version comparison can't see the upgrade.
 
@@ -173,7 +177,8 @@ Some collections need members to write into shared collaborative folders (e.g., 
 
 **Collection code-dir reader grant + folder_id (added in 2.10.1 — Option B id-anchored access; closes cr01/cr02).** Non-admin members are not Drive members; they can read a collection's code dir at `/{name}/` only if it is directly shared with them, and they address it by stored `folder_id` (they cannot resolve `/{name}` by name — bug 20260606-…-db13). So Step 5.5 ALSO does the following, folded into the same flow above:
    - **Capture folder_id:** if `org-config.json` `installed_collections[{name}].folder_id` is absent, `aifs_stat("/{name}")` → write the resolved Drive ID into that entry (revision-aware). (download-collection captures it too; this covers the install-only and reconfigure paths.)
-   - **Grant all@ reader on the collection code dir:** include the change `{op:"share", resource: "id:{folder_id}" (if captured, else "/{name}"), resource_label: "{display_name} code folder", is_folder: true, recipient: "{all_members_group}", role: "reader", reason: "Members need read to sync this collection's capabilities", source: "task_spec"}` in the SAME list built in step 3. One table and one confirmation cover both the `/shared` collaborative writers AND the code-dir reader. The procedure skips it if `all@` already holds reader. **Without this grant, members cannot sync the collection's capabilities** — this is the brand-book 2026-06-08 failure (cr01). A collection with no `collaborative-acls.json` still gets THIS grant: the code-dir reader is unconditional for every installed collection, independent of whether the collection declares collaborative `/shared` folders.
+   - **Grant all@ reader on the collection code dir:** include the change `{op:"share", resource: {code_dir}, resource_label: "{display_name} code folder", is_folder: true, recipient: "{all_members_group}", role: "reader", reason: "Members need read to sync this collection's capabilities", source: "task_spec"}` in the SAME list built in step 3. One table and one confirmation cover both the `/shared` collaborative writers AND the code-dir reader. The procedure skips it if `all@` already holds reader. **Without this grant, members cannot sync the collection's capabilities** — this is the brand-book 2026-06-08 failure (cr01). A collection with no `collaborative-acls.json` still gets THIS grant: the code-dir reader is unconditional for every installed collection, independent of whether the collection declares collaborative `/shared` folders.
+     - **`{code_dir}` by backend (finding 63).** gdrive: `"id:{folder_id}"` when captured, else `"/{name}"`. OneDrive: `"/{name}"` (path first); use `"id:{drive_id}:{folder_id}"` only if the path fails and both ids are known (`drive_id` from org-config `remote_filesystem.connection`). Never a bare `id:{folder_id}` on OneDrive: it resolves against the admin's own drive (`/me/drive`), so `aifs_get_permissions` returns `PATH_NOT_FOUND` and provisioning blocks (ms_install_10).
    - **Record the result (hard step, C.1.5.0 `collreadgrantmissing`).** The procedure has already re-read the backend.
      - Code-dir row `applied` or `skipped_noop` → set `installed_collections[{name}].member_read_grant: "granted"` in `org-config.json` (revision-aware).
      - Any other state → set `member_read_grant: "pending"` and **hard-surface**: "Members cannot read {collection-name} until the all-members reader grant on its code dir is applied — run '@ai:install-collection {collection-name}' → Apply access only, or it will be offered again on the next '@ai:publish-updates' (Step 6e)."
@@ -187,8 +192,10 @@ This step is the **only** place install-collection touches permissions, and only
 If the collection's `collection.json` declares `provides[]`:
 
 1. **Validate the declaration.** For each provides entry: resolve the capability type definition — well-known (`/agent-index-core/capability-types/{capability}.json` via `aifs_read`) or collection-custom (`/{collection}/capability-types/{name}.json`). Verify every `required: true` operation in the type is present in the entry's `operations` map, and every `implemented_by` names a member of the collection's `api[]`. On any failure: surface the specific gap ("provides declares `{op}` implemented by `{name}`, which is not in api[]"), **skip registration for that entry**, and continue the install — a broken provides declaration must not block the collection's direct use.
+   - **Undefined type (finding 56).** If neither definition exists, don't skip silently. Tell the admin in one line: "`{collection}` says it provides `{capability}`, but this org has no definition for that capability type, so it can't be registered as a provider. The collection itself works normally." Then continue.
 2. **Prompt the admin.** "`{collection}` provides the `{capability}` capability ({N} operations). Register it as a `{capability}` provider for this org?" Include any `provider_config` values the collection's setup interview produced for the registry (e.g., brand-book's `brand_usage`).
-3. **On accept:** revision-aware update of `org-config.json` (`aifs_stat` → `if_revision` → retry on `REVISION_CONFLICT`): create `capability_providers` if absent; append `{provider_collection, capability_version, registered_date, registered_by: {admin member_hash}, operations_available, provider_config}` to `capability_providers.{capability}.providers`. If other providers already exist for the type, inform: "registered alongside {existing_list}." Then append a `provider-register` op to the update log.
+   - **Already registered (finding 86).** Before prompting, read `capability_providers.{capability}.providers` in org-config. If an entry with `provider_collection` = this collection already exists and its `capability_version` and `operations_available` match what this run would write, it's a no-op: no prompt, no registry write, no log op. Note "`{collection}` is already registered as a `{capability}` provider." and move on. If an entry exists but differs, prompt "Update `{collection}`'s `{capability}` provider registration?" and, on accept, step 3 **replaces that entry in place** — never append a second entry for the same collection.
+3. **On accept:** revision-aware update of `org-config.json` (`aifs_stat` → `if_revision` → retry on `REVISION_CONFLICT`): create `capability_providers` if absent; append (or, for an already-registered collection, replace in place) `{provider_collection, capability_version, registered_date, registered_by: {admin member_hash}, operations_available, provider_config}` to `capability_providers.{capability}.providers`. If other providers already exist for the type, inform: "registered alongside {existing_list}." Then append a `provider-register` op to the update log.
 4. **On decline:** no registry write, no log op. Note in the confirmation: "Not registered as a provider — consumers will not discover it. Re-run '@ai:install-collection {collection}' (reconfigure) to register later."
 
 If the collection declares `requires[]`: for each entry, check `capability_providers` for a registered provider implementing all `required_operations`. Surface per spec — `required: true` unmet → WARNING; `required: false` unmet → INFO ("these features will be disabled"). **Never block installation.**

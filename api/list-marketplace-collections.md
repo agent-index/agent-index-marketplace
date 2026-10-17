@@ -1,7 +1,7 @@
 ---
 name: list-marketplace-collections
 type: task
-version: 2.1.2
+version: 2.1.3
 collection: agent-index-marketplace
 description: Shows all collections available across the org's subscribed marketplace catalogs, grouped by catalog, with download and install status for each.
 stateful: false

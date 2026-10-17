@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.6.0
+version: 1.6.1
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -119,6 +119,8 @@ Verify the staged tree contains `collection.json` with `version` matching `targe
 
 ### Step 6: Compute Diff Against Remote
 
+Filter both walks (staged tree and remote) through the source skip-list in `download-collection` Step 4 (finding 23): `.git*` entries (except `.gitkeep`), `.github/`, `.vscode/`, `.idea/`, `.DS_Store`, and other dot-files and dot-folders except `.claude/`. A filtered file is neither uploaded nor proposed for deletion.
+
 For each file in the staged tree, compare against the corresponding remote file at `/<collection>/<relative_path>`:
 
 - `local_only` — file exists in staged tree, not at remote → upload
@@ -148,8 +150,9 @@ This detection gates Steps 7 and 11 below. Lesson encoded from the strategy 1.0.
 If the staged `collection.json`'s `provides[]` differs from the installed one (operations added/removed, `capability_version` changed), or the collection is registered in `org-config.json` `capability_providers` with stale `operations_available`:
 
 1. Include the registration refresh in the Step 7 plan ("provider registration will be refreshed: {summary of op changes}").
-2. After the Step 8 upload succeeds: revision-aware update of the registry entry (`operations_available`, `capability_version`; preserve `provider_config` and provenance fields) + append a `provider-register` op to the update log (re-registration).
-3. If the collection has `provides[]` but was never registered (admin declined at install): note it in the plan — "provides `{capability}` but is not registered; run '@ai:install-collection {collection}' (reconfigure) to register" — and do NOT auto-register here.
+2. After the Step 8 upload succeeds: revision-aware update of the registry entry (`operations_available`, `capability_version`; preserve `provider_config` and provenance fields) + add a `provider-register` op (re-registration) to the Step 10 update-log entry, next to its `collection-update` op — not as a separate entry.
+3. **A capability the new version no longer provides** (its `provides[]` dropped it — e.g. library 1.7.2 and client-intelligence 2.4.2 drop their undefined types, finding 56) but that `capability_providers` still lists for this collection: include "provider registration for `{capability}` will be removed" in the Step 7 plan; after the upload, remove that registry entry (revision-aware) and add a `provider-deregister` op to the Step 10 entry instead of `provider-register`. Members treat both ops as informational.
+4. If the collection has `provides[]` but was never registered (admin declined at install): note it in the plan — "provides `{capability}` but is not registered; run '@ai:install-collection {collection}' (reconfigure) to register" — and do NOT auto-register here.
 
 ### Step 7: Present Plan and Confirm
 
@@ -240,7 +243,9 @@ Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array, in 
 }
 ```
 
-Read the entry back and confirm `operations` has exactly one element before updating `latest.json`.
+If Step 6.7 refreshed or removed the provider registration, its `provider-register` / `provider-deregister` op goes in this same entry's `operations[]`, after the `collection-update` op. An upgrade-collection entry holds exactly one `collection-update` op plus, optionally, one `provider-register` or `provider-deregister` op (findings 62, 56).
+
+Read the entry back and confirm `operations` holds exactly one `collection-update` op and at most one `provider-register` or `provider-deregister` op, and nothing else, before updating `latest.json`.
 
 Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler). The `ref`/`commit` fields let apply-updates (core 3.32.0+) apply a same-version channel candidate (channels, 2.22.0).
 
@@ -248,7 +253,7 @@ Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members 
 
 ### Step 11: Verify and Surface Result
 
-Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
+Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. **Durable read-back (finding 78; standards.md § "Durable read-back after a write"):** a mismatch on the read right after the upload is not yet a mismatch — OneDrive can serve the previous bytes for a few seconds after a write. Wait ~5 s and re-read once; the same applies to any per-file byte/SHA read-back of the Step 8 uploads. Only if the second read still differs is it a mismatch. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
 
 On success surface:
 
@@ -256,6 +261,7 @@ On success surface:
 ✓ Upgraded {name} from {installed_version} to {target_version}{on a channel org: " (channel {channel}, {source_ref}@{short source_commit})"}
   Files: {N} uploaded, {M} deleted, {P} preserved
   Members will pick up the upgrade on their next @ai:apply-updates
+  The org's download manifest (/shared/dist/) will list '{name}' {target_version} after your next '@ai:publish-updates'.
 {if migration script: "  Members will see the migration script's instructions during their upgrade."}
 {if provisioning_needed:
 "  ⚠ NOT YET FUNCTIONAL — provisioning pending.
@@ -282,7 +288,7 @@ If the deprecated zip fallback was used, delete the staging directory `<project_
 | Zip download fails (deprecated fallback only) | Skip-or-halt prompt. Admin retries. |
 | Zip is corrupt or extract fails (deprecated fallback only) | Halt. Staging dir is left for debugging. |
 | Single `aifs_write` fails partway through Step 8 | Surface error, halt. org-config NOT yet updated (Step 9). Re-running diffs against the partial-upload state and continues from where it left off. |
-| Verification mismatch in Step 11 | Surface warning. Suggest re-run. Org-config has already been updated in Step 9 (since uploads succeeded), so the next run will see no diff if the partial-upload state matches the target — verification confirms cleanly on retry. |
+| Verification mismatch in Step 11 (still different on the ~5 s re-read) | Surface warning. Suggest re-run. Org-config has already been updated in Step 9 (since uploads succeeded), so the next run will see no diff if the partial-upload state matches the target — verification confirms cleanly on retry. |
 
 ## Directives
 
