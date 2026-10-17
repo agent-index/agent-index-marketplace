@@ -1,6 +1,6 @@
 ﻿# Agent-Index Marketplace — Changelog
 
-## [2.22.3] — <RELEASE_DATE> — standards.md citations re-pointed; provisioning check compares content
+## [2.22.3] — 2026-10-17 — standards.md citations re-pointed; provisioning check compares content
 
 Pairs with core 4.1.0, which retires `standards.md` (CI-013, marketplace#2 by Kallista Salak). Citations in check-updates 2.13.3, download-collection 2.8.2, install-collection 2.5.2, refresh-marketplace-cache 2.5.2, upgrade-collection, `internal/resolve-marketplaces.md`, the collection setup and the README now point to core `runtime-reference.md` / `admin-distribution.md` or the developer collection's `marketplace-eligibility.md`.
 
