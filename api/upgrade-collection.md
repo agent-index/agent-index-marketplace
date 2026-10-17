@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.6.1
+version: 1.7.0
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -138,8 +138,10 @@ The staging-vs-remote diff result is the "upgrade plan." If counts are `upload: 
 
 File sync alone is NOT a complete upgrade when the target version changes access control or org setup. From the Step 6 diff, set `provisioning_needed = true` if either:
 
-- **`collaborative-acls.json`** is `local_only` or `differs` — the new version declares ACL grants that only `install-collection` Step 5.5 applies (through the core permission-changes procedure; this task never touches permissions).
-- **`setup/collection-setup.md`** is `local_only` or `differs` — the setup interview changed (parameters added/removed, new Setup Completion steps such as creating shared folders). The org's `collection-setup-responses.md` may now be stale or reference retired parameters.
+- **`collaborative-acls.json`** is `local_only`, or `differs` **in what it grants** — the new version declares ACL grants that only `install-collection` Step 5.5 applies (through the core permission-changes procedure; this task never touches permissions). Compare the parsed grant entries (each entry's path, role and recipient), not the file bytes: a change only to descriptions, reasons or comments is not a provisioning change (finding 95 — strategy 1.3.1 changed only a citation).
+- **`setup/collection-setup.md`** is `local_only`, or `differs` **in its interview** — parameters added, removed or renamed, a changed default or allowed value, or a new or changed Setup Completion step (such as creating shared folders). The org's `collection-setup-responses.md` may then be stale or reference retired parameters. A change only to explanatory prose or citations is not. When unsure, treat it as a change.
+
+When a file differs but the change is prose only, say so in the plan ("collaborative-acls.json: wording only, no grant changed") and leave `provisioning_needed` false.
 
 As a supplementary signal, check the staged `CHANGELOG.md` for a "Requires Admin Attention" section under the target version and include its text in the plan if present.
 

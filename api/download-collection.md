@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.8.1
+version: 2.8.2
 collection: agent-index-marketplace
 description: Downloads a collection from one of the org's subscribed marketplace catalogs to the org's remote filesystem, recording which catalog it came from. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
 stateful: false

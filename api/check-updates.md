@@ -1,7 +1,7 @@
 ---
 name: check-updates
 type: task
-version: 2.13.2
+version: 2.13.3
 collection: agent-index-marketplace
 description: Comprehensive update check across infrastructure, the filesystem adapter, installed collections, and member capabilities — shows everything that has a newer version available and what to do about it.
 stateful: false

@@ -1,5 +1,12 @@
 ﻿# Agent-Index Marketplace — Changelog
 
+## [2.22.3] — 2026-10-17 — standards.md citations re-pointed; provisioning check compares content
+
+Pairs with core 4.1.0, which retires `standards.md` (CI-013, marketplace#2 by Kallista Salak). Citations in check-updates 2.13.3, download-collection 2.8.2, install-collection 2.5.2, refresh-marketplace-cache 2.5.2, upgrade-collection, `internal/resolve-marketplaces.md`, the collection setup and the README now point to core `runtime-reference.md` / `admin-distribution.md` or the developer collection's `marketplace-eligibility.md`.
+
+### Fixed
+- **upgrade-collection 1.7.0 flags provisioning only when grants or the setup interview actually change (finding 95).** Step 6.5 compared `collaborative-acls.json` and `setup/collection-setup.md` byte for byte, so strategy 1.3.1's citation-only change was flagged PROVISIONING REQUIRED. It now compares the grant entries (path, role, recipient) and the interview's parameters and completion steps; a prose-only change is reported as such and needs no Apply-access run.
+
 ## [2.22.2] — 2026-10-17 — OneDrive and post-4.0 fixes
 
 ### Fixed (4.0.1 pass — OneDrive and Google Drive live tests)

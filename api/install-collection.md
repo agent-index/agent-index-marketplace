@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.5.1
+version: 2.5.2
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) and the members' code-dir read grant at Step 5.5, through the core permission-changes procedure (the admin confirms the exact changes).
 stateful: true
