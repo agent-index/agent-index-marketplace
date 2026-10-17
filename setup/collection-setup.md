@@ -9,7 +9,7 @@ upgrade_compatible: true
 
 ## Collection Setup Overview
 
-This sets up the marketplace for your org. It confirms the org's catalog subscriptions are readable so your org can browse and install collections. This takes about one minute. (2.1.0: no cache is created and nothing is fetched from the web — catalogs are read from the admin's local clones; `standards.md` § "Marketplaces".)
+This sets up the marketplace for your org. It confirms the org's catalog subscriptions are readable so your org can browse and install collections. This takes about one minute. (2.1.0: no cache is created and nothing is fetched from the web — catalogs are read from the admin's local clones; `agent-index-core/admin-distribution.md` § "Marketplaces: catalogs, subscriptions, provenance (normative — core 3.30.0; collision rules revised in 3.31.0)".)
 
 ---
 

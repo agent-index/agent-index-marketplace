@@ -111,7 +111,7 @@ For multi-MAJOR jumps (1.x → 3.x), chain migration scripts: 1-to-2 then 2-to-3
 
 This matters for private catalogs: a private catalog's collection repo is only reachable with the admin's git credentials, which the clone script uses and a web zip fetch does not.
 
-The `zip_url` path survives **only** as the deprecated fallback for a not-yet-migrated org with no clone tooling; if used, emit the standards.md deprecation warning, SHA-pin the archive per the Distribution fetch protocol, and stage under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`. **Never on a channel org** (org-config `distribution_channel` set): a ZIP is the default branch and would silently revert the org; refresh the clone with the channel instead (core 3.32.0).
+The `zip_url` path survives **only** as the deprecated fallback for a not-yet-migrated org with no clone tooling; if used, emit the deprecation warning (`agent-index-core/admin-distribution.md` § "Distribution: backend-first (Release C — the current model)"), SHA-pin the archive per the Distribution fetch protocol, and stage under `<project_dir>/.agent-index/staging/upgrade-{collection}-{ISO-timestamp}/`. **Never on a channel org** (org-config `distribution_channel` set): a ZIP is the default branch and would silently revert the org; refresh the clone with the channel instead (core 3.32.0).
 
 Verify the staged tree contains `collection.json` with `version` matching `target_version`. This check also holds on a channel org: the catalog clone is on the same channel, so its entry must match the channel head.
 
@@ -253,7 +253,7 @@ Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members 
 
 ### Step 11: Verify and Surface Result
 
-Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. **Durable read-back (finding 78; standards.md § "Durable read-back after a write"):** a mismatch on the read right after the upload is not yet a mismatch — OneDrive can serve the previous bytes for a few seconds after a write. Wait ~5 s and re-read once; the same applies to any per-file byte/SHA read-back of the Step 8 uploads. Only if the second read still differs is it a mismatch. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
+Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. **Durable read-back (finding 78; `agent-index-core/runtime-reference.md` § "Adapter Operations Contract"):** a mismatch on the read right after the upload is not yet a mismatch — OneDrive can serve the previous bytes for a few seconds after a write. Wait ~5 s and re-read once; the same applies to any per-file byte/SHA read-back of the Step 8 uploads. Only if the second read still differs is it a mismatch. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
 
 On success surface:
 
@@ -298,7 +298,7 @@ The per-org setup-responses file at `/<collection>/setup/collection-setup-respon
 
 ### Never call aifs_share / aifs_unshare / aifs_transfer_ownership outside the permission-changes procedure
 
-This task doesn't modify permissions. If a future enhancement requires permission changes (e.g., a collection upgrade needs to grant additional read access on shared collection files), the change MUST go through the core permission-changes procedure (`/agent-index-core/internal/permission-changes.md`) per `agent-index-core/standards.md` § "Permission changes: list, confirm, apply, verify".
+This task doesn't modify permissions. If a future enhancement requires permission changes (e.g., a collection upgrade needs to grant additional read access on shared collection files), the change MUST go through the core permission-changes procedure (`/agent-index-core/internal/permission-changes.md`) per `agent-index-core/runtime-reference.md` § "Permission changes: list, confirm, apply, verify".
 
 ### Don't invoke this task from inside another task
 

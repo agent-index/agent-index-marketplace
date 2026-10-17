@@ -17,7 +17,7 @@ writes_to: null
 
 ## About This Task
 
-> **Deprecated in agent-index-marketplace 2.20.0 (multi-marketplace). No task invokes this any more.** Catalogs are now read from each subscription in `org-config.json` → `marketplaces[]` via `/internal/resolve-marketplaces.md`, from the admin's local clones. `/shared/marketplace-cache/` is decommissioned (`standards.md` § "Marketplaces"); nothing reads it.
+> **Deprecated in agent-index-marketplace 2.20.0 (multi-marketplace). No task invokes this any more.** Catalogs are now read from each subscription in `org-config.json` → `marketplaces[]` via `/internal/resolve-marketplaces.md`, from the admin's local clones. `/shared/marketplace-cache/` is decommissioned (`agent-index-core/admin-distribution.md` § "Decommissioned: `/shared/marketplace-cache/`"); nothing reads it.
 >
 > **Guard — run before anything below.** If `org-config.json` has any subscription with `source.kind: "clone"`, OR `<install_root>/agent-index-resource-listings/marketplace-directory.json` exists: do **not** fetch and do **not** write the cache. Surface: "This org reads its marketplace catalogs from local clones, so there's no cache to refresh. To pick up newer catalog versions, refresh your clones with the committed clone-repos script (say '@ai:check-updates' for the admin upstream check)." Halt.
 >
@@ -70,7 +70,7 @@ In manual mode: always proceed to Step 3 regardless of expiry.
 
 ### Step 3: Fetch Latest Directory
 
-Download the marketplace directory from `source_url` **using the Distribution fetch protocol (SHA-pinned) — standards.md § "Distribution fetch protocol"** (replaces the 2.9.0 cache-buster in marketplace 2.11.0; closes bug `20260601-8d20ea22-2`):
+Download the marketplace directory from `source_url` **using the Distribution fetch protocol (SHA-pinned) — `agent-index-core/admin-distribution.md` § "Distribution fetch protocol (SHA-pinned) — admin-side / deprecated fallback"** (replaces the 2.9.0 cache-buster in marketplace 2.11.0; closes bug `20260601-8d20ea22-2`):
 
 1. Resolve the repo's branch head SHA via the commits **LIST** endpoint: `GET https://api.github.com/repos/{owner}/{repo}/commits?sha={branch}&per_page=1&nonce={epoch}` → `[0].sha` (derive `{owner}/{repo}/{branch}/{path}` from `source_url`). **Never use the single-commit form `/commits/{branch}`** — it is served stale, and a stale SHA pins a stale directory (bug `20260617-8d20ea22-165359-6715`).
 2. Fetch `https://raw.githubusercontent.com/{owner}/{repo}/{SHA}/{path}` — immutable, cannot be served stale. Record `source: pinned` + the SHA.

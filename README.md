@@ -23,7 +23,7 @@ The marketplace collection for agent-index. Provides org admins with the tools t
 
 An org can subscribe to **more than one marketplace catalog** (2.20.0, with core 3.30.0). Each catalog is a repo containing a `marketplace-directory.json` that declares its own `marketplace_id`, `display_name` and reserved `namespace`. The org's subscriptions live in `org-config.json` → `marketplaces[]` and are managed with `@ai:edit-org` → Manage marketplaces. Every new org subscribes to the public Agent Index catalog (`agent-index-resource-listings`).
 
-Catalogs are **admin-only** and are read from the admin's local clones under the install root — never fetched from the web, and there is no cache or TTL. Every marketplace task reads them through one internal resolver (`internal/resolve-marketplaces.md`), which checks catalog identity and namespaces and fails loudly if a subscribed catalog can't be read. Each installed collection records the catalog it came from (`installed_collections[].marketplace_id`), so update checks compare it against its own catalog. Full model: `agent-index-core/standards.md` § "Marketplaces".
+Catalogs are **admin-only** and are read from the admin's local clones under the install root — never fetched from the web, and there is no cache or TTL. Every marketplace task reads them through one internal resolver (`internal/resolve-marketplaces.md`), which checks catalog identity and namespaces and fails loudly if a subscribed catalog can't be read. Each installed collection records the catalog it came from (`installed_collections[].marketplace_id`), so update checks compare it against its own catalog. Full model: `agent-index-core/admin-distribution.md` § "Marketplaces: catalogs, subscriptions, provenance (normative — core 3.30.0; collision rules revised in 3.31.0)".
 
 `/shared/marketplace-cache/` is decommissioned; nothing reads it.
 
@@ -74,7 +74,7 @@ then choose "Manage marketplace subscriptions".
 
 ## For Collection Authors
 
-To get your collection listed in the marketplace, see the submission process in `agent-index-core/standards.md`.
+To get your collection listed in the marketplace, see the developer collection's `marketplace-eligibility.md` § "Submission Process".
 
 ---
 
