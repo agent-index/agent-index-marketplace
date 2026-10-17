@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.6.1
+version: 1.6.2
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
