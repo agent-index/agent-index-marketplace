@@ -1,6 +1,6 @@
 ﻿# Agent-Index Marketplace — Changelog
 
-## [2.22.2] — <RELEASE_DATE> — OneDrive and post-4.0 fixes
+## [2.22.2] — 2026-10-17 — OneDrive and post-4.0 fixes
 
 ### Fixed (4.0.1 pass — OneDrive and Google Drive live tests)
 - **install-collection 2.5.1 Step 5.5 builds the code-folder row by backend (finding 63):** gdrive `id:{folder_id}`; OneDrive `/{name}`, then `id:{drive_id}:{folder_id}` — never a bare id on OneDrive (it resolves against the admin's own drive). `internal/resolve-marketplaces.md` reads org-config id-first on gdrive and path-first on OneDrive.
