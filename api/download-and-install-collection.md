@@ -1,7 +1,7 @@
 ---
 name: download-and-install-collection
 type: task
-version: 2.1.0
+version: 2.1.1
 collection: agent-index-marketplace
 description: Convenience wrapper that downloads a marketplace collection and immediately runs its installation setup in a single flow.
 stateful: false
@@ -68,6 +68,8 @@ The transition between download and install should feel seamless — no break in
 > "'{display_name}' is downloaded. Now let's configure it for your org."
 
 Then proceed with the setup interview.
+
+Repeat `download-collection`'s Step 4.3 note in the closing confirmation (finding 74): "The org's download manifest (`/shared/dist/`) will list '{display_name}' after your next '@ai:publish-updates'. Once it's installed, members can already add it with '@ai:setup'."
 
 ---
 

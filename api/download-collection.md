@@ -1,7 +1,7 @@
 ---
 name: download-collection
 type: task
-version: 2.8.0
+version: 2.8.1
 collection: agent-index-marketplace
 description: Downloads a collection from one of the org's subscribed marketplace catalogs to the org's remote filesystem, recording which catalog it came from. Runs conflict detection before downloading. Sources the collection from the admin's tag-pinned LOCAL GIT CLONE (Release-C backend-first; never a GitHub web fetch) and uploads to remote via aifs_write_batch (single-process bulk upload; chunked per-file fallback only when the adapter lacks the batch op).
 stateful: false
@@ -109,8 +109,10 @@ The `zip_url`/web path survives **only** as the deprecated fallback for a not-ye
 
    **Check the adapter advertises the batch op before choosing this path.** Read the adapter's `supported_operations` (from `adapter.json` / the aifs capabilities the adapter reports) and confirm `writeBatch` is listed. If `writeBatch` IS advertised, use `aifs_write_batch` per sub-batch as above. If it is NOT advertised (an older deployed adapter that predates the batch op), fall back to per-file `aifs_write` — but issue the writes in the **same fixed sub-batches of 10 files**, verifying each sub-batch landed (and skipping files already present) before starting the next group, NOT one giant sequential loop over all files. Chunking the fallback this way keeps a large collection from timing out mid-upload the way the un-chunked loop did (`instcollnobatch`).
 
+   **Source skip-list (finding 23).** Upload only collection source. Leave out of the file list, at any depth: `.git/` and every other `.git*` entry (`.gitignore`, `.gitattributes`, `.gitmodules`) except `.gitkeep` (an empty-folder marker some collections ship, which core uploads too), `.github/`, `.vscode/`, `.idea/`, `.DS_Store`, `Thumbs.db`, `node_modules/`, and editor temp files (`*.swp`, `*.swo`, `*.bak`, `*.tmp`). Any other dot-file or dot-folder is skipped too unless it is `.claude/`, which a collection may ship on purpose. (Core's publish-updates Step 0 list is the same rule for core and the marketplace, plus core's own `cowork-plugin/` dot-files.) `upgrade-collection` Step 6 applies the same list to both its upload and delete sides.
+
    **Deployment note:** if the adapter reports no batch op (`writeBatch` absent from `supported_operations`) despite being on a version that *should* advertise it (>= gdrive 2.10.0, or the onedrive equivalent), that is a deployment/packaging issue — a stale or mis-built adapter bundle — and should be checked separately (e.g. via `@ai:verify-workspace-policy` or by re-staging the adapter). Do not treat it as normal: the chunked fallback keeps the upload working, but an adapter on that version should be advertising the op.
-3. Re-publish `/shared/dist/` (manifest + any changed directories) per the `backend-distribution` subroutine, so the org's version authority reflects the new collection.
+3. **Don't re-publish `/shared/dist/` here (finding 74).** Only `create-org` Step 11 and `publish-updates` Step 6.5 rewrite `/shared/dist/manifest.json` (core `templates/backend-distribution.md`, "Who rewrites the manifest"); a just-downloaded collection isn't in `/shared/updates/published-state.json` until the next publish, so a republish here would fail the manifest's consistency check. Tell the admin after Step 6: "The org's download manifest (`/shared/dist/`) will list '{display_name}' after your next '@ai:publish-updates'. Once it's installed, members can already add it with '@ai:setup'."
 
 If download or upload fails: classify the failure shape first (added in core 3.7.4 to close section D of idea `allowlist-failure-mode-warnings-in-tasks`):
 
@@ -162,6 +164,7 @@ Update `last_updated` on `org-config.json`.
 
 Confirm to admin:
 > "'{display_name}' v{version} has been downloaded ({install_method}). Say '@ai:install-collection {name}' to configure it for your org, or say '@ai:download-and-install-collection' to do both steps together next time."
+> "The org's download manifest (`/shared/dist/`) will list '{display_name}' after your next '@ai:publish-updates'. Once it's installed, members can already add it with '@ai:setup'."
 
 ---
 

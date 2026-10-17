@@ -31,7 +31,7 @@ No member-configurable parameters.
 ## Setup Completion
 
 1. Write all collected parameter values to `setup-responses.md`
-2. Write the installed instance to `/members/{member-id}/tasks/list-org-collections/`
+2. Write the installed instance to `members/{member_hash}/installed/agent-index-marketplace/task/list-org-collections/`
 3. Write `manifest.json`
 4. Register entry in `member-index.json` with alias `@ai:list-org-collections`
 5. Confirm to member: "'List Org Collections' is installed. Say '@ai:list-org-collections' to see your org's collections."

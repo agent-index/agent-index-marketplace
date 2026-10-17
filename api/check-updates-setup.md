@@ -43,7 +43,7 @@ This setup configures the update checking task. The defaults work well for most 
 
 1. Write all collected parameter values to `setup-responses.md`
 2. Generate the personalized installed instance
-3. Write the installed instance to `/members/{member_hash}/tasks/check-updates/`
+3. Write the installed instance to `members/{member_hash}/installed/agent-index-marketplace/task/check-updates/`
 4. Write manifest.json
 5. Register entry in `member-index.json`
 6. Confirm completion to member

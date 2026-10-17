@@ -36,7 +36,7 @@ This installs the Download Collection task. Download a marketplace collection to
 ## Setup Completion
 
 1. Write all collected parameter values to `setup-responses.md`
-2. Write the installed instance to `/members/{member-id}/tasks/download-collection/`
+2. Write the installed instance to `members/{member_hash}/installed/agent-index-marketplace/task/download-collection/`
 3. Write `manifest.json`
 4. Register entry in `member-index.json` with alias `@ai:download-collection`
 5. Confirm to member: "'Download Collection' is installed. Say '@ai:download-collection' followed by a collection name to download it."

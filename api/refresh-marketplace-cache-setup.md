@@ -36,7 +36,7 @@ This installs the Refresh Marketplace Cache task. Fetch the latest marketplace d
 ## Setup Completion
 
 1. Write all collected parameter values to `setup-responses.md`
-2. Write the installed instance to `/members/{member-id}/tasks/refresh-marketplace-cache/`
+2. Write the installed instance to `members/{member_hash}/installed/agent-index-marketplace/task/refresh-marketplace-cache/`
 3. Write `manifest.json`
 4. Register entry in `member-index.json` with alias `@ai:refresh-marketplace-cache`
 5. Confirm to member: "'Refresh Marketplace Cache' is installed. Say '@ai:refresh-marketplace-cache' to get the latest marketplace directory."
