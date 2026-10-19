@@ -24,12 +24,7 @@ This installs the List Marketplace Collections task. Browse all available market
 
 ## Parameters
 
-### Org-Mandated Parameters [org-mandated]
-
-**marketplace_cache_ttl_hours** [org-mandated]
-- Description: Cache TTL for the marketplace directory
-- Value source: injected from collection org-setup-responses
-- Member visibility: read-only
+No member-configurable parameters.
 
 ---
 
