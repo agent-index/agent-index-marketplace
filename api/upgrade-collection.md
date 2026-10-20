@@ -50,7 +50,7 @@ On demand. Org admins say `@ai:upgrade-collection <name>` (or natural-language e
 
 ### Step 1: Verify Admin and Identify Collection
 
-Resolve the running member's `member_hash` (SHA-256 of lowercase email, first 16 hex chars). Read `org-config.json` from remote via `aifs_read("/org-config.json")`. If the member is not in `admins[].member_hash`, surface:
+Resolve the running member's `member_hash` (SHA-256 of lowercase email, first 16 hex chars). Read `org-config.json` from remote via `aifs_read({org-config})` (see "Remote addressing" under Directives). If the member is not in `admins[].member_hash`, surface:
 
 > "Only org admins can upgrade collections. The current admins are: {admin list}. Contact one of them, or run `@ai:check-updates` to see what's available."
 
@@ -101,7 +101,7 @@ If the catalog entry has a `min_required_version` field and `target_version < mi
 
 ### Step 4: Detect Migration Needs
 
-If the upgrade crosses a MAJOR version boundary (e.g., installed 1.x → target 2.x), a migration script may be required. Check for `aifs_read("/<collection>/upgrade/{from_major}-to-{target_major}.md")` after Step 5's download — if such a file exists, it gets surfaced to the admin during Step 7's confirmation as a "may require attention" note. Same-MAJOR upgrades (1.2.3 → 1.3.0) skip this concern.
+If the upgrade crosses a MAJOR version boundary (e.g., installed 1.x → target 2.x), a migration script may be required. Check for `aifs_read({base}/upgrade/{from_major}-to-{target_major}.md)` after Step 5's download — if such a file exists, it gets surfaced to the admin during Step 7's confirmation as a "may require attention" note. Same-MAJOR upgrades (1.2.3 → 1.3.0) skip this concern.
 
 For multi-MAJOR jumps (1.x → 3.x), chain migration scripts: 1-to-2 then 2-to-3. The chained scripts get presented as a sequence in the confirmation summary.
 
@@ -121,7 +121,7 @@ Verify the staged tree contains `collection.json` with `version` matching `targe
 
 Filter both walks (staged tree and remote) through the source skip-list in `download-collection` Step 4 (finding 23): `.git*` entries (except `.gitkeep`), `.github/`, `.vscode/`, `.idea/`, `.DS_Store`, and other dot-files and dot-folders except `.claude/`. A filtered file is neither uploaded nor proposed for deletion.
 
-For each file in the staged tree, compare against the corresponding remote file at `/<collection>/<relative_path>`:
+For each file in the staged tree, compare against the corresponding remote file at `{base}/<relative_path>`:
 
 - `local_only` — file exists in staged tree, not at remote → upload
 - `differs` — file exists in both, content differs → upload (overwrite)
@@ -201,7 +201,7 @@ On `N`: surface "Upgrade cancelled. No changes made." Halt cleanly.
 
 Upload all `local_only` and `differs` files **in one process via `aifs_write_batch`** (`bulkuploadserial`, gdrive adapter 2.9.0+ / onedrive 2.6.0+; falls back to per-file `aifs_write` only if the deployed adapter predates the batch op). Apply LF normalization (per `apply-updates` Phase 1 step 6 convention) for text-shaped files (`.md`, `.json`, `.html`, `.yaml`, `.yml`, `.sh`, `.js`).
 
-For each `remote_only` file NOT in the preserve list: delete via `aifs_delete("/<collection>/<relative_path>")`.
+For each `remote_only` file NOT in the preserve list: delete via `aifs_delete({base}/<relative_path>)`.
 
 Surface a one-line confirmation per file: `✓ upload <path>` / `✓ delete <path>`.
 
@@ -219,7 +219,7 @@ Read `org-config.json`, mutate:
 - `installed_collections[<name>].source_tag ← <the resolved tag>` — only when `ref_type` is `tag`; otherwise leave any existing value alone
 - `installed_collections[<name>].marketplace_id` — **unchanged**. Provenance is written at download and never recomputed; an upgrade from the origin catalog does not touch it. If the key is absent (pre-back-fill org), write `"agent-index-public"` — the catalog Step 2 actually used.
 
-Write back via `aifs_write("/org-config.json", ...)`.
+Write back via `aifs_write({org-config}, ...)`.
 
 ### Step 10: Write CHANGELOG Entry
 
@@ -255,7 +255,7 @@ Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members 
 
 ### Step 11: Verify and Surface Result
 
-Verify post-upload by reading `/<collection>/collection.json` from remote — confirm `version` matches `target_version`. **Durable read-back (finding 78; `agent-index-core/runtime-reference.md` § "Adapter Operations Contract"):** a mismatch on the read right after the upload is not yet a mismatch — OneDrive can serve the previous bytes for a few seconds after a write. Wait ~5 s and re-read once; the same applies to any per-file byte/SHA read-back of the Step 8 uploads. Only if the second read still differs is it a mismatch. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
+Verify post-upload by reading `{base}/collection.json` from remote — confirm `version` matches `target_version`. **Durable read-back (finding 78; `agent-index-core/runtime-reference.md` § "Adapter Operations Contract"):** a mismatch on the read right after the upload is not yet a mismatch — OneDrive can serve the previous bytes for a few seconds after a write. Wait ~5 s and re-read once; the same applies to any per-file byte/SHA read-back of the Step 8 uploads. Only if the second read still differs is it a mismatch. If mismatch, surface a warning: "Verification failed: `/<collection>/collection.json` reports `{actual}` but expected `{target}`. The upgrade may have been only partially applied. Review the upload log above and consider re-running `@ai:upgrade-collection {name}` to retry."
 
 On success surface:
 
@@ -293,6 +293,16 @@ If the deprecated zip fallback was used, delete the staging directory `<project_
 | Verification mismatch in Step 11 (still different on the ~5 s re-read) | Surface warning. Suggest re-run. Org-config has already been updated in Step 9 (since uploads succeeded), so the next run will see no diff if the partial-upload state matches the target — verification confirms cleanly on retry. |
 
 ## Directives
+
+**Remote addressing (CI-019; `memberpathreads`, finding 63).** Every org-config and collection-tree read, write and delete in this task uses the per-backend form below, so it also works for an admin who is not a member of the org's Shared Drive (a bare path returns not found for them on Google Drive). Backend: local `agent-index.json` `remote_filesystem.backend`.
+
+| Written in this task as | Google Drive | OneDrive |
+|---|---|---|
+| `{org-config}` | `id:{org_config_id}` (local `agent-index.json` → `remote_filesystem.connection.org_config_id`) | `/org-config.json` |
+| `{base}/...` | `id:{folder_id}/...`, `folder_id` from this collection's entry in org-config `installed_collections[]` | `/<collection>/...` |
+
+On Google Drive, if `org_config_id` or the collection's `folder_id` is missing, halt and name it rather than falling back to a bare path.
+
 
 ### Preserve setup-responses
 
