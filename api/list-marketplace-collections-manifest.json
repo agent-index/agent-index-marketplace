@@ -13,9 +13,7 @@
   "setup_template": "list-marketplace-collections-setup.md",
   "dependency_status": "complete",
   "missing_dependencies": [],
-  "parameter_provenance": {
-    "marketplace_cache_ttl_hours": "org-mandated"
-  },
+  "parameter_provenance": {},
   "dependencies": {
     "skills": [],
     "tasks": []

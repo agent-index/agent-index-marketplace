@@ -22,15 +22,7 @@ This sets up the marketplace for your org. It confirms the org's catalog subscri
 
 ## Org-Level Parameters
 
-### Marketplace Cache Configuration
-
-**marketplace_cache_ttl_hours**
-- Description: **No longer used as of 2.1.0** — retained so existing setup responses stay valid (removing a parameter is a breaking setup change). Catalogs are read from local clones and have no TTL. Accept the default.
-- Applies to: list-marketplace-collections, download-collection, download-and-install-collection
-- Interview prompt: "How often should I check for new or updated collections in the marketplace? The default is every 24 hours — this means once a day I'll fetch the latest list from GitHub. You can set it higher for less frequent checks or lower if you want more current information."
-- Accepted values: Any positive integer representing hours
-- Default: `24`
-- Implication of choices: Lower values mean more frequent network requests to GitHub. Higher values mean the list may be slightly stale. 24 hours is appropriate for most orgs.
+None. (`marketplace_cache_ttl_hours` was removed: it had no reader since 2.1.0, when catalogs moved to local clones. A value already saved in an org's `collection-setup-responses.md` is ignored.)
 
 ---
 
@@ -47,7 +39,7 @@ This sets up the marketplace for your org. It confirms the org's catalog subscri
 ## Upgrade Behavior
 
 ### Preserved Responses
-- `marketplace_cache_ttl_hours` — preserved across upgrades (unused since 2.1.0)
+None.
 
 ### Reset on Upgrade
 None.

@@ -137,7 +137,7 @@ If `infrastructure_directory_url` is set in `agent-index.json`:
      ]
    }
    ```
-2. Find the entry where `name` is `agent-index-core`. Compare its `current_version` against the local `agent-index-core/collection.json` `version` (read via `aifs_read("/agent-index-core/collection.json")`).
+2. Find the entry where `name` is `agent-index-core`. Compare its `current_version` against the local `agent-index-core/collection.json` `version` (the org's copy, read from core's read base: on Google Drive `aifs_read("id:{folder_id}/collection.json")` with `folder_id` from the `agent-index-core` entry in org-config `installed_collections[]` and org-config read by `id:{org_config_id}`; on OneDrive `aifs_read("/agent-index-core/collection.json")` — core `runtime-reference.md` § "Addressing: Owned Content and Sharing", finding 63. A bare path returns not found for a member who isn't in the Shared Drive.)
 3. Find the entry where `name` is `agent-index-marketplace`. Compare its `current_version` against the local `agent-index-marketplace/collection.json` `version`.
 4. If the fetch succeeded but an expected entry is missing, record that piece as `unable to check (entry not found in directory)` and continue.
 
