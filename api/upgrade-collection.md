@@ -1,7 +1,7 @@
 ---
 name: upgrade-collection
 type: task
-version: 1.7.0
+version: 1.8.0
 collection: agent-index-marketplace
 description: Upgrade an already-installed marketplace collection to a newer version. Resolves the target version from the collection's own origin catalog, sources new files from the admin's tag-pinned local clone (Release-C; zip_url only as deprecated fallback), uploads to remote, updates org-config.json, writes a CHANGELOG entry, and preserves per-org setup-responses. Detects when the target version ships ACL or setup-interview changes and routes the admin to install-collection for provisioning — file sync alone is not a complete upgrade for those releases.
 stateful: false
@@ -98,6 +98,8 @@ If `target_version <= installed_version`: surface "`{name}` is already at versio
 **Channel orgs and leaving a channel (channels, 2.22.0; core 3.32.0):** when org-config `distribution_channel` is set, **or** the installed entry's `source_ref` starts with `channel/` (the org just left a channel and this collection still holds candidate content), skip the `target ≤ installed` check above — a channel candidate can keep the same version, or carry a lower one. "Nothing to do" is decided after the Step 5 clone instead: if the repo's `commit` in `<install_root>/.agent-index/clone-resolution.json` equals `installed_collections[<name>].source_commit`, surface "`{name}` is already at channel {channel} commit `{short sha}`. Nothing to do." and halt cleanly. If the installed entry has no `source_commit` (installed before 2.22.0), continue: the Step 6 diff decides.
 
 If the catalog entry has a `min_required_version` field and `target_version < min_required_version`: surface "Cannot upgrade `{name}` to `{target}` — the catalog says minimum allowed version is `{min}`. Try `--to {min}` or omit `--to`." Halt.
+
+**Adapter requirement (CI-025, 2.23.0).** If the target version's `collection.json` declares `requires_adapter` and the org's deployed adapter (`mcp-servers/filesystem/adapter.json` `version`) is older than the entry for this org's backend, stop here: "'{name}' {target} needs filesystem adapter {required} or later; this org has {deployed}. Deploy it first with '@ai:edit-org' → Step 2, then upgrade." When the requirement is met, Step 10 copies `requires_adapter` onto the `collection-update` operation, so apply-updates can hold it back for a member whose own adapter is older (core 4.2.0, Phase 0a).
 
 ### Step 4: Detect Migration Needs
 
@@ -239,7 +241,8 @@ Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array, in 
       "target_version": "<target_version>",
       "has_migration": <true if migration script present>,
       "ref": "<source_ref>",
-      "commit": "<source_commit>"
+      "commit": "<source_commit>",
+      "requires_adapter": <the target collection.json's requires_adapter, or omit the field>
     }
   ]
 }

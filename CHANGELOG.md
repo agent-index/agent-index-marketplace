@@ -1,5 +1,12 @@
 ﻿# Agent-Index Marketplace — Changelog
 
+## [2.23.0] — <RELEASE_DATE> — adapter requirement for plain-path collections (CI-025)
+
+Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
+
+### Added
+- **install-collection 2.6.0 and upgrade-collection 1.8.0 honour a collection's `requires_adapter`.** A collection whose task files address org locations by plain path declares the adapter it needs in `collection.json` (`{"gdrive": "2.12.0", "onedrive": "2.8.0"}`). Installing or upgrading it on an org whose deployed adapter is older stops with "deploy the adapter first (edit-org Step 2)". upgrade-collection copies the requirement onto its `collection-update` operation, so apply-updates can hold the update back for a member whose own adapter is older.
+
 ## [2.22.3] — 2026-10-17 — standards.md citations re-pointed; provisioning check compares content
 
 Pairs with core 4.1.0, which retires `standards.md` (CI-013, marketplace#2 by Kallista Salak). Citations in check-updates 2.13.3, download-collection 2.8.2, install-collection 2.5.2, refresh-marketplace-cache 2.5.2, upgrade-collection, `internal/resolve-marketplaces.md`, the collection setup and the README now point to core `runtime-reference.md` / `admin-distribution.md` or the developer collection's `marketplace-eligibility.md`.
