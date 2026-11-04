@@ -130,7 +130,7 @@ For each file in the staged tree, compare against the corresponding remote file 
 
 **Preserve list (do NOT overwrite or delete):**
 - `setup/collection-setup-responses.md` — per-org setup answers from `install-collection`'s setup interview. Org-specific state, not collection content.
-- Any file under `/<collection>/state/` if such a path is present at remote — collection-managed state, not part of the upstream artifact.
+- Any file under `{base}/state/` if such a path is present at remote — collection-managed state, not part of the upstream artifact.
 
 The staging-vs-remote diff result is the "upgrade plan." If counts are `upload: 0, delete: 0, synced: N`: surface "`{name}` is already at the target version's content; nothing to upload." Halt cleanly.
 
@@ -199,7 +199,7 @@ On `N`: surface "Upgrade cancelled. No changes made." Halt cleanly.
 
 ### Step 8: Upload to Remote
 
-Upload all `local_only` and `differs` files **in one process via `aifs_write_batch`** (`bulkuploadserial`, gdrive adapter 2.9.0+ / onedrive 2.6.0+; falls back to per-file `aifs_write` only if the deployed adapter predates the batch op). Apply LF normalization (per `apply-updates` Phase 1 step 6 convention) for text-shaped files (`.md`, `.json`, `.html`, `.yaml`, `.yml`, `.sh`, `.js`).
+Upload all `local_only` and `differs` files to `{base}/<relative_path>` **in one process via `aifs_write_batch`** (`bulkuploadserial`, gdrive adapter 2.9.0+ / onedrive 2.6.0+; falls back to per-file `aifs_write` only if the deployed adapter predates the batch op). Apply LF normalization (per `apply-updates` Phase 1 step 6 convention) for text-shaped files (`.md`, `.json`, `.html`, `.yaml`, `.yml`, `.sh`, `.js`).
 
 For each `remote_only` file NOT in the preserve list: delete via `aifs_delete({base}/<relative_path>)`.
 
@@ -209,7 +209,7 @@ If any single file write fails: surface the error and halt. The remote is left i
 
 ### Step 9: Update org-config.json
 
-Read `org-config.json`, mutate:
+Read org-config via `aifs_read({org-config})`, mutate:
 
 - `installed_collections[<name>].version ← <target_version>`
 - `installed_collections[<name>].upgraded_date ← <today YYYY-MM-DD>`
@@ -223,7 +223,7 @@ Write back via `aifs_write({org-config}, ...)`.
 
 ### Step 10: Write CHANGELOG Entry
 
-Append a new entry to `/shared/updates/update-log.json`'s `entries[]` array, in the same shape publish-updates writes — the operation goes inside `operations[]` (`flatupdateentry`, Dev Two live test finding 27: 1.5.0 wrote the operation fields at entry level, and apply-updates, which walks `operations[]`, synced nothing, so members never received a same-version channel change):
+Append a new entry to `{shared}/updates/update-log.json`'s `entries[]` array, in the same shape publish-updates writes — the operation goes inside `operations[]` (`flatupdateentry`, Dev Two live test finding 27: 1.5.0 wrote the operation fields at entry level, and apply-updates, which walks `operations[]`, synced nothing, so members never received a same-version channel change):
 
 ```json
 {
@@ -249,9 +249,9 @@ If Step 6.7 refreshed or removed the provider registration, its `provider-regist
 
 Read the entry back and confirm `operations` holds exactly one `collection-update` op and at most one `provider-register` or `provider-deregister` op, and nothing else, before updating `latest.json`.
 
-Update `/shared/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler). The `ref`/`commit` fields let apply-updates (core 3.32.0+) apply a same-version channel candidate (channels, 2.22.0).
+Update `{shared}/updates/latest.json` `latest_id` to the new entry's id. Members consume this entry via `@ai:apply-updates` (Phase 4 collection-update handler). The `ref`/`commit` fields let apply-updates (core 3.32.0+) apply a same-version channel candidate (channels, 2.22.0).
 
-**Pair the snapshot (added in 2.10.0 — closes bug 20260605-8d20ea22-234936-c06b):** in the same step, update `/shared/updates/published-state.json`'s entry for this collection (version + api_members, plus `commit` and `ref` from core 3.32.0) exactly as publish-updates Step 5 would. Anything that writes an update-log entry keeps published-state in step; otherwise the next `@ai:publish-updates` diffs against a stale snapshot and proposes a duplicate re-broadcast.
+**Pair the snapshot (added in 2.10.0 — closes bug 20260605-8d20ea22-234936-c06b):** in the same step, update `{shared}/updates/published-state.json`'s entry for this collection (version + api_members, plus `commit` and `ref` from core 3.32.0) exactly as publish-updates Step 5 would. Anything that writes an update-log entry keeps published-state in step; otherwise the next `@ai:publish-updates` diffs against a stale snapshot and proposes a duplicate re-broadcast.
 
 ### Step 11: Verify and Surface Result
 
@@ -294,14 +294,15 @@ If the deprecated zip fallback was used, delete the staging directory `<project_
 
 ## Directives
 
-**Remote addressing (CI-019; `memberpathreads`, finding 63).** Every org-config and collection-tree read, write and delete in this task uses the per-backend form below, so it also works for an admin who is not a member of the org's Shared Drive (a bare path returns not found for them on Google Drive). Backend: local `agent-index.json` `remote_filesystem.backend`.
+**Remote addressing (CI-019; `memberpathreads`, finding 63).** Every org-config, collection-tree and `/shared/updates/` read, write and delete in this task uses the per-backend form below, so it also works for an admin who is not a member of the org's Shared Drive (a bare path returns not found for them on Google Drive). Backend: local `agent-index.json` `remote_filesystem.backend`.
 
 | Written in this task as | Google Drive | OneDrive |
 |---|---|---|
 | `{org-config}` | `id:{org_config_id}` (local `agent-index.json` → `remote_filesystem.connection.org_config_id`) | `/org-config.json` |
 | `{base}/...` | `id:{folder_id}/...`, `folder_id` from this collection's entry in org-config `installed_collections[]` | `/<collection>/...` |
+| `{shared}/...` | `id:{resource_ids.shared_root}/...` (from org-config) | `/shared/...` |
 
-On Google Drive, if `org_config_id` or the collection's `folder_id` is missing, halt and name it rather than falling back to a bare path.
+**Fallbacks (core 4.0.1).** On Google Drive, use the id form first. If the id is missing (`org_config_id`, the collection's `folder_id` or `resource_ids.shared_root`) or the id read fails, fall back to the path in the OneDrive column. On OneDrive, use the path first; the only id fallback is the drive-qualified `id:{drive_id}:{id}`, never a bare `id:`. Never halt only because an id is missing: `publish-updates` Step 6f back-fills missing ids. A not-found from one form may only mean the wrong form, so try the other form before concluding something isn't there.
 
 
 ### Preserve setup-responses
