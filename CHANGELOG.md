@@ -1,5 +1,15 @@
 ﻿# Agent-Index Marketplace — Changelog
 
+## [2.22.4] — 2026-11-11 — check-updates reads core's version by backend; unused cache TTL removed
+
+Pairs with core 4.1.1 (Kallista Salak, marketplace#6).
+
+### Fixed
+- **check-updates 2.13.4 reads the org's core `collection.json` by backend (CI-017).** On Google Drive it reads `id:{folder_id}/collection.json` (core's `folder_id` from org-config); on OneDrive the path. A bare `/agent-index-core/...` path returned not found for a member outside the Shared Drive, so the core version check failed.
+
+### Removed
+- **`marketplace_cache_ttl_hours` (bug 2907).** Nothing has read it since 2.1.0, when catalogs moved to local clones. The collection setup (2.2.0) no longer asks for it, and the five task setups and manifests that declared it (download-and-install-collection, download-collection, install-collection, list-marketplace-collections, refresh-marketplace-cache) no longer do. A value already saved in an org's `collection-setup-responses.md` is ignored, and core 4.1.1's manifest-sync leaves an existing block in place.
+
 ## [2.22.3] — 2026-10-17 — standards.md citations re-pointed; provisioning check compares content
 
 Pairs with core 4.1.0, which retires `standards.md` (CI-013, marketplace#2 by Kallista Salak). Citations in check-updates 2.13.3, download-collection 2.8.2, install-collection 2.5.2, refresh-marketplace-cache 2.5.2, upgrade-collection, `internal/resolve-marketplaces.md`, the collection setup and the README now point to core `runtime-reference.md` / `admin-distribution.md` or the developer collection's `marketplace-eligibility.md`.

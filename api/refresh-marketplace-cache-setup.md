@@ -1,7 +1,7 @@
 ---
 name: refresh-marketplace-cache-setup
 type: setup
-version: 2.0.0
+version: 2.0.1
 collection: agent-index-marketplace
 description: Setup for the refresh-marketplace-cache task
 target: refresh-marketplace-cache
