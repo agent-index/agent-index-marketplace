@@ -1,7 +1,7 @@
 ---
 name: download-and-install-collection-setup
 type: setup
-version: 2.0.1
+version: 2.0.2
 collection: agent-index-marketplace
 description: Setup for the download-and-install-collection task
 target: download-and-install-collection

@@ -1,7 +1,7 @@
 ---
 name: install-collection-setup
 type: setup
-version: 2.0.1
+version: 2.0.2
 collection: agent-index-marketplace
 description: Setup for the install-collection task
 target: install-collection
