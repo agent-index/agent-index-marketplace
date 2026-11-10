@@ -1,6 +1,6 @@
 ﻿# Agent-Index Marketplace — Changelog
 
-## [2.22.4] — 2026-11-11 — check-updates reads core's version by backend; unused cache TTL removed
+## [2.22.4] — 2026-11-10 — check-updates reads core's version by backend; unused cache TTL removed
 
 Pairs with core 4.1.1 (Kallista Salak, marketplace#6).
 
