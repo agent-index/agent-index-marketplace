@@ -98,7 +98,7 @@
         }
       ]
     },
-    "refresh-marketplace-cache",
+    { "name": "refresh-marketplace-cache", "triggers": [] },
     {
       "name": "check-updates",
       "triggers": [
