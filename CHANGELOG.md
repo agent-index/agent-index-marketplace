@@ -6,6 +6,15 @@ Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
 
 ### Added
 - **install-collection 2.6.0 and upgrade-collection 1.8.0 honour a collection's `requires_adapter`.** A collection whose task files address org locations by plain path declares the adapter it needs in `collection.json` (`{"gdrive": "2.12.0", "onedrive": "2.8.0"}`). Installing or upgrading it on an org whose deployed adapter is older stops with "deploy the adapter first (edit-org Step 2)". upgrade-collection copies the requirement onto its `collection-update` operation, so apply-updates can hold the update back for a member whose own adapter is older.
+## [2.22.4] — 2026-11-10 — check-updates reads core's version by backend; unused cache TTL removed
+
+Pairs with core 4.1.1 (Kallista Salak, marketplace#6).
+
+### Fixed
+- **check-updates 2.13.4 reads the org's core `collection.json` by backend (CI-017).** On Google Drive it reads `id:{folder_id}/collection.json` (core's `folder_id` from org-config); on OneDrive the path. A bare `/agent-index-core/...` path returned not found for a member outside the Shared Drive, so the core version check failed.
+
+### Removed
+- **`marketplace_cache_ttl_hours` (bug 2907).** Nothing has read it since 2.1.0, when catalogs moved to local clones. The collection setup (2.2.0) no longer asks for it, and the five task setups and manifests that declared it (download-and-install-collection, download-collection, install-collection, list-marketplace-collections, refresh-marketplace-cache) no longer do. A value already saved in an org's `collection-setup-responses.md` is ignored, and core 4.1.1's manifest-sync leaves an existing block in place.
 
 ## [2.22.3] — 2026-10-17 — standards.md citations re-pointed; provisioning check compares content
 

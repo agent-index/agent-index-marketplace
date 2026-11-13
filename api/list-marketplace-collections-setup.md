@@ -1,7 +1,7 @@
 ---
 name: list-marketplace-collections-setup
 type: setup
-version: 2.0.1
+version: 2.0.2
 collection: agent-index-marketplace
 description: Setup for the list-marketplace-collections task
 target: list-marketplace-collections
