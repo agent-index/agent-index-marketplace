@@ -1,5 +1,11 @@
 ﻿# Agent-Index Marketplace — Changelog
 
+## [2.23.0] — 2026-11-20 — adapter requirement for plain-path collections (CI-025)
+
+Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
+
+### Added
+- **install-collection 2.6.0 and upgrade-collection 1.8.0 honour a collection's `requires_adapter`.** A collection whose task files address org locations by plain path declares the adapter it needs in `collection.json` (`{"gdrive": "2.12.0", "onedrive": "2.8.0"}`). Installing or upgrading it on an org whose deployed adapter is older stops with "deploy the adapter first (edit-org Step 2)". upgrade-collection copies the requirement onto its `collection-update` operation, so apply-updates can hold the update back for a member whose own adapter is older.
 ## [2.22.4] — 2026-11-10 — check-updates reads core's version by backend; unused cache TTL removed
 
 Pairs with core 4.1.1 (Kallista Salak, marketplace#6).

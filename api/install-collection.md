@@ -1,7 +1,7 @@
 ---
 name: install-collection
 type: task
-version: 2.5.2
+version: 2.6.0
 collection: agent-index-marketplace
 description: Runs the org-admin setup interview for a downloaded collection, configuring it for the org and making it available for members to install. Provisions any collaborative-folder ACLs the collection declares (collaborative-acls.json) and the members' code-dir read grant at Step 5.5, through the core permission-changes procedure (the admin confirms the exact changes).
 stateful: true
@@ -44,6 +44,8 @@ Check `org-config.json` for the collection entry.
 If not found in org-config at all: surface "'{name}' hasn't been downloaded yet. Say '@ai:download-collection {name}' to download it first." Halt.
 
 **Core 4.0.0 helper gate (`gatedownloaded`, Dev Two live test finding 26).** If the org's core (`org-config.agent_index_version`) is 4.0.0 or later, check the collection against the minimum-version table in `/agent-index-core/upgrade/3-to-4.md` § 1 (read through core's read base: gdrive `id:{core folder_id}/upgrade/3-to-4.md`, OneDrive the path), and, for a collection not in that table, search its `api/` for live calls to the retired helper (the patterns `upgrade/3-to-4.md` § 1 lists). If it's below its minimum or has a live call: surface "'{name}' {version} still uses the permission helper that core 4.0.0 removed. Download {minimum} or later (`@ai:download-collection {name}`), then install." Halt. This applies to Reconfigure and Apply access only as well.
+
+**Adapter requirement (CI-025, marketplace 2.23.0 / core 4.2.0).** If the collection's `collection.json` declares `requires_adapter` (`{"gdrive": "X.Y.Z", "onedrive": "X.Y.Z"}`), compare the entry for this org's backend (`agent-index.json` `remote_filesystem.backend`) with the org's deployed adapter (`mcp-servers/filesystem/adapter.json` `version`). If the deployed adapter is older, surface "'{name}' {version} needs filesystem adapter {required} or later; this org has {deployed}. Deploy it first with '@ai:edit-org' → Step 2 (Update adapter bundle), then install." Halt. Its task files address org locations by plain path, which older adapters can't resolve for every member. This applies to Reconfigure and Apply access only as well.
 
 If `status: installed`: offer two paths and require an explicit choice:
 - **Apply access only (2.4.0)** — re-run only Step 5.5 against the existing setup responses. This is the path for anything pending: `member_read_grant: "pending"`, `collaborative_acls: "pending"`, or provisioning flagged by `upgrade-collection`. The setup interview is not repeated. Go straight to Step 5.5.
