@@ -1,6 +1,6 @@
 ﻿# Agent-Index Marketplace — Changelog
 
-## [2.23.0] — <RELEASE_DATE> — adapter requirement for plain-path collections (CI-025)
+## [2.23.0] — 2026-11-20 — adapter requirement for plain-path collections (CI-025)
 
 Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
 
